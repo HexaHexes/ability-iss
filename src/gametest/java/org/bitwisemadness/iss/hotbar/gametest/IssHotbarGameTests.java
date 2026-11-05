@@ -1,10 +1,10 @@
-package org.bitwisemadness.examplemod.gametest;
+package org.bitwisemadness.iss.hotbar.gametest;
 
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
-import org.bitwisemadness.examplemod.ExampleMod;
+import org.bitwisemadness.iss.hotbar.IssHotbar;
 
 /**
  * Smoke test: proves the mod loads and the GameTest harness runs.
@@ -13,11 +13,11 @@ import org.bitwisemadness.examplemod.ExampleMod;
  * {@code expectedTests} count in {@code build.gradle} in sync with the number
  * of {@code @GameTest} methods here, or the harness fails the run.</p>
  */
-@GameTestHolder(ExampleMod.MOD_ID)
+@GameTestHolder(IssHotbar.MOD_ID)
 @PrefixGameTestTemplate(false)
-public final class ExampleGameTests {
+public final class IssHotbarGameTests {
 
-    private ExampleGameTests() {
+    private IssHotbarGameTests() {
     }
 
     /** The mod is loaded and the empty structure template resolves. */
