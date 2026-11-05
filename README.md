@@ -1,4 +1,4 @@
-# ISS Hotbar
+# Ability ISS
 
 An Ability Hotbar provider for Iron's Spells 'n Spellbooks: wear a spellbook
 in the Curios slot and cast its spells from a cycleable provider bar - the

@@ -1,4 +1,4 @@
-package org.bitwisemadness.iss.hotbar;
+package org.bitwisemadness.abilityiss;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

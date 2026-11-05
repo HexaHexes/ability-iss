@@ -1,4 +1,4 @@
-package org.bitwisemadness.iss.hotbar;
+package org.bitwisemadness.abilityiss;
 
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
@@ -14,10 +14,10 @@ import org.slf4j.Logger;
 @Mod(IssHotbar.MOD_ID)
 public final class IssHotbar {
 
-    public static final String MOD_ID = "iss_hotbar";
+    public static final String MOD_ID = "ability_iss";
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public IssHotbar(IEventBus modBus) {
-        LOGGER.info("ISS Hotbar initialized");
+        LOGGER.info("Ability ISS initialized");
     }
 }
