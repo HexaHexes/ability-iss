@@ -1,0 +1,209 @@
+package org.bitwisemadness.abilityiss.compat;
+
+import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
+import io.redspace.ironsspellbooks.api.util.Utils;
+import java.util.Map;
+import java.util.Set;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.registries.RegisterEvent;
+import org.bitwisemadness.abilitycore.AbilityCore;
+import org.bitwisemadness.abilitycore.api.AbilityAvailability;
+import org.bitwisemadness.abilitycore.api.AbilityDefinition;
+import org.bitwisemadness.abilitycore.api.ActivationOutcome;
+import org.bitwisemadness.abilitycore.api.ActivationRequest;
+import org.bitwisemadness.abilitycore.api.ActivationResult;
+import org.bitwisemadness.abilitycore.api.ActivationType;
+import org.bitwisemadness.abilitycore.api.AvailabilityProviders;
+import org.bitwisemadness.abilitycore.api.AvailabilityState;
+import org.bitwisemadness.abilitycore.api.ChargingModel;
+import org.bitwisemadness.abilitycore.api.Metric;
+import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
+import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
+import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
+import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
+import org.bitwisemadness.abilityhotbar.state.SeededAssignments;
+import org.bitwisemadness.abilityiss.client.SpellbookBarContentProvider;
+
+/**
+ * The Ability Iss hotbar seam: everything that touches Ability Hotbar and
+ * Ability Core for the spellbook bar (#3).
+ *
+ * <p>The bar ({@link #CURIO_BAR}) is registered <b>non-assignable</b>: the
+ * menu never lists it, players never assign to it - its cells are the
+ * equipped spellbook's spells, seeded from the book's contents. The cast
+ * verb ({@link #CAST_ID}) is scoped to the bar so it can never leak to
+ * another bar, and each seeded cell names its spell <b>by index</b> through
+ * {@code ActivationRequest.slotContext}.</p>
+ *
+ * <p>Casting is delegated to ISS itself: {@link Utils#serverSideInitiateQuickCast}
+ * resolves the player's own spell selection (built from the curios-worn
+ * book - {@link Utils#getPlayerSpellbookStack} reads Curios directly),
+ * so mana, cooldown, cast-in-progress and refusal messaging stay ISS's
+ * own pipeline. The handler only maps the boolean to the outcome
+ * vocabulary - the press precedent: the domain messages the player, the
+ * pipeline carries outcomes.</p>
+ *
+ * <p>All four dependencies are hard in the toml (curios, Iron's Spells,
+ * Ability Core, Ability Hotbar), so no {@code isLoaded()} gates on the
+ * wiring itself; the one dist check guards the client-only provider
+ * construction (it reads {@code Minecraft}'s player, and the JVM verifies
+ * whole classes at first use).</p>
+ */
+public final class SpellbookBarBridge {
+
+    /** The addon's bar id: registered non-assignable, cells = spellbook spells. */
+    public static final ResourceLocation CURIO_BAR = ResourceLocation.fromNamespaceAndPath(
+            "ability_iss", "spellbook");
+
+    /** Display name for the switch toast (and any future surface). */
+    public static final String BAR_NAME_KEY = "ability_iss.bar.spellbook";
+
+    /** The cast ability's id (registered on core's abilities registry). */
+    public static final ResourceLocation CAST_ID = ResourceLocation.fromNamespaceAndPath(
+            "ability_iss", "cast");
+
+    /** ContentPlan's ceiling: no book cell count may exceed it. */
+    public static final int MAX_CELLS = 18;
+
+    private static boolean registered;
+    private static boolean handlersRegistered;
+
+    private SpellbookBarBridge() {
+    }
+
+    /** True while Ability Hotbar is present (required in the toml; defensive). */
+    public static boolean isLoaded() {
+        ModList modList = ModList.get();
+        return modList != null && modList.isLoaded("ability_hotbar");
+    }
+
+    /**
+     * Register the bar, the verb's scope and the client cell provider -
+     * common setup, once. Order is load-bearing: the provider registration
+     * validates the bar registration, and constructing the provider is
+     * client-only (link-safety: it reads Minecraft's player).
+     */
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+        HotbarRegistry.register(CURIO_BAR, BAR_NAME_KEY, false);
+        AbilityBarScopes.register(CAST_ID, CURIO_BAR);
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            HotbarContentProviders.register(CURIO_BAR, new SpellbookBarContentProvider());
+        }
+    }
+
+    /**
+     * Register the cast definition on core's registry - called from the
+     * mod-bus {@code RegisterEvent} for core's abilities key. The icon is
+     * ISS's own spellbook texture (spells have no item form - their icons
+     * are textures, ability-hotbar#115).
+     */
+    public static void registerDefinitions(RegisterEvent event) {
+        event.register(AbilityRegistries.ABILITY_REGISTRY_KEY, CAST_ID,
+                () -> new AbilityDefinition(
+                        "ability_iss.ability.cast",
+                        ResourceLocation.fromNamespaceAndPath("irons_spellbooks",
+                                "textures/item/copper_spell_book.png"),
+                        ResourceLocation.fromNamespaceAndPath("ability_iss", "spellbook"),
+                        ActivationType.INSTANT,
+                        null,
+                        Set.of("spell", "cast"),
+                        Map.of()));
+    }
+
+    /**
+     * Register the handler and the availability projection - common setup,
+     * before any login can reach the pipeline. Idempotent (both of core's
+     * registries fail loudly on duplicates).
+     */
+    public static void registerHandlers() {
+        if (handlersRegistered) {
+            return;
+        }
+        handlersRegistered = true;
+        AbilityCore.HANDLERS.register(CAST_ID, SpellbookBarBridge::cast, ChargingModel.NATIVE);
+        AvailabilityProviders.declare(CAST_ID, SpellbookBarBridge::availability);
+    }
+
+    /**
+     * The native pipeline entry (#3): a spellbook-bar cell casting its own
+     * spell - {@code slotContext} is the cell index, resolved against the
+     * player's own spell selection by ISS's quick-cast. Fail-closed: a
+     * request without a cell, a stale cell (beyond the book's capacity) or
+     * a slot ISS cannot resolve refuses instead of guessing.
+     */
+    private static ActivationResult cast(ActivationRequest request, ServerPlayer player) {
+        int slot = request.slotContext();
+        if (slot < 0) {
+            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
+        }
+        var book = findBook(player);
+        var container = book.isEmpty() ? null : ISpellContainer.get(book);
+        if (container == null || slot >= container.getMaxSpellCount()) {
+            // No book (stale seed) or a cell the book no longer has.
+            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
+        }
+        if (!Utils.serverSideInitiateQuickCast(player, slot)) {
+            // ISS resolves the slot (null/empty/casting) and messages the
+            // specific reason itself when it has one; we carry the outcome.
+            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
+        }
+        return ActivationResult.ACTED;
+    }
+
+    /**
+     * The cast's overlay tuple (#3): whether a castable spell exists in the
+     * equipped book. Cooldown is per-spell in ISS, so the ability-global
+     * projection is honestly unknown - the contract renders nothing rather
+     * than a lie (REQ-HOT-08). Per-spell overlays land with
+     * ability-hotbar#115's per-cell availability.
+     */
+    private static AbilityAvailability availability(Player player, ResourceLocation id) {
+        var book = findBook(player);
+        var container = book.isEmpty() ? null : ISpellContainer.get(book);
+        boolean castable = container != null && container.getActiveSpellCount() > 0;
+        return new AbilityAvailability(
+                Metric.unknown(),
+                Metric.unknown(),
+                castable ? AvailabilityState.available()
+                        : AvailabilityState.unavailable("no spellbook"));
+    }
+
+    /**
+     * The equipped spellbook: ISS's own accessor - it reads the curios
+     * inventory directly, so this is the same stack the selection manager
+     * builds the player's spell list from (one source of truth for cells,
+     * seeds and casts). Empty stack when nothing is worn.
+     */
+    public static ItemStack findBook(Player player) {
+        ItemStack book = Utils.getPlayerSpellbookStack(player);
+        return book == null ? ItemStack.EMPTY : book;
+    }
+
+    /**
+     * Seed the whole bar from the equipped book (#3): cells
+     * {@code 0..active-1} carry the cast verb; every other possible cell is
+     * cleared (a smaller book must not leave stale seeds). Re-run on login,
+     * on inscription (the book's contents changed - the event carries no
+     * stack, so the re-seed is whole-bar and idempotent) and on equipping
+     * the spellbook itself (Curios is the source of truth).
+     */
+    public static void seed(ServerPlayer player) {
+        var book = findBook(player);
+        var container = book.isEmpty() ? null : ISpellContainer.get(book);
+        int active = container == null ? 0 : container.getActiveSpellCount();
+        for (int cell = 0; cell < MAX_CELLS; cell++) {
+            String ability = cell < active ? CAST_ID.toString() : null;
+            SeededAssignments.seed(player, CURIO_BAR, cell, ability);
+        }
+    }
+}
