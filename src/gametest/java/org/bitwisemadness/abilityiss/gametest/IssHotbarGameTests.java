@@ -1,10 +1,10 @@
-package org.bitwisemadness.iss.hotbar.gametest;
+package org.bitwisemadness.abilityiss.gametest;
 
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
-import org.bitwisemadness.iss.hotbar.IssHotbar;
+import org.bitwisemadness.abilityiss.IssHotbar;
 
 /**
  * Smoke test: proves the mod loads and the GameTest harness runs.
