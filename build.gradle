@@ -89,12 +89,73 @@ tasks.withType(JavaCompile).configureEach {
 // every derived repo.
 repositories {
     mavenCentral()
+    // CurseMaven - resolves mod jars by CurseForge project + file id, so a
+    // clean checkout (and CI) resolves every jar without a local folder.
+    maven {
+        name = 'CurseMaven'
+        url = 'https://cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+    // Ability Core / Ability Hotbar resolve from their own GitHub Packages
+    // maven (they are not on CurseForge or Modrinth). GH Packages reads
+    // require credentials: the workflow token in CI, gpr.user / gpr.key
+    // locally.
+    maven {
+        name = 'GitHubPackagesAbilityCore'
+        url = uri('https://maven.pkg.github.com/HexaHexes/ability-core')
+        credentials {
+            username = System.getenv('GITHUB_ACTOR') ?: project.findProperty('gpr.user')
+            password = System.getenv('GITHUB_TOKEN') ?: project.findProperty('gpr.key')
+        }
+    }
+    maven {
+        name = 'GitHubPackagesAbilityHotbar'
+        url = uri('https://maven.pkg.github.com/HexaHexes/ability-hotbar')
+        credentials {
+            username = System.getenv('GITHUB_ACTOR') ?: project.findProperty('gpr.user')
+            password = System.getenv('GITHUB_TOKEN') ?: project.findProperty('gpr.key')
+        }
+    }
+}
+
+// Runtime closure for the GameTest run: staged into run/mods by
+// prepareGametestMods, exactly like the rest of the org's mod repos.
+configurations {
+    gametestMods
 }
 
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Pins live here rather than in gradle.properties: the version doctrine
+    // keeps that file for version bumps only (ci.yml), so pins ride with the
+    // dependency that needs them. File ids are the pack's installed files.
+    def ironsSpellsFileId = '8680204'     // irons_spellbooks-1.21.1-3.16.3
+    def ironsLibFileId = '9328060'        // irons_lib-1.21.1-2.3.0
+    def geckolibFileId = '8893490'        // geckolib-neoforge-1.21.1-4.9.3
+    def playerAnimatorFileId = '7389814'  // player-animation-lib-forge-2.0.4+1.21.1
+    def curiosFileId = '6529130'          // curios-neoforge-9.5.1+1.21.1
+    def abilityCoreVersion = '1.0.0-alpha.26'
+    def abilityHotbarVersion = '1.0.0-alpha.41'
+
+    // What the mod's code compiles against (the iss-hotbar#3 seams).
+    compileOnly "curse.maven:irons-spells-n-spellbooks-855414:${ironsSpellsFileId}"
+    compileOnly "curse.maven:curios-309927:${curiosFileId}"
+    compileOnly "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
+    compileOnly "org.bitwisemadness.abilityhotbar:ability_hotbar:${abilityHotbarVersion}"
+
+    // GameTest runtime: ISS boots only with its full required closure
+    // (its neoforge.mods.toml marks geckolib, playeranimator, curios and
+    // irons_lib as required).
+    gametestMods "curse.maven:irons-spells-n-spellbooks-855414:${ironsSpellsFileId}"
+    gametestMods "curse.maven:irons-lib-1492763:${ironsLibFileId}"
+    gametestMods "curse.maven:geckolib-388172:${geckolibFileId}"
+    gametestMods "curse.maven:playeranimator-658587:${playerAnimatorFileId}"
+    gametestMods "curse.maven:curios-309927:${curiosFileId}"
+    gametestMods "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
+    gametestMods "org.bitwisemadness.abilityhotbar:ability_hotbar:${abilityHotbarVersion}"
 }
 
 test {
@@ -103,9 +164,18 @@ test {
 
 // --- GameTest harness -------------------------------------------------------
 
+// Stage the gametest runtime closure into run/mods before the headless run,
+// exactly like the rest of the org's mod repos.
+tasks.register('prepareGametestMods', Sync) {
+    from configurations.gametestMods
+    into 'run/mods'
+}
+
 // Grade the run on the log summary: the task's exit code is not a reliable
 // signal. Keep expectedTests in sync with the @GameTest methods.
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
+    dependsOn 'prepareGametestMods'
+
     def expectedTests = 1
     doLast {
         def log = file('run/logs/latest.log')

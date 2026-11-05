@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
   pull-requests: read
+  # Ability Core / Ability Hotbar resolve from the org's GitHub Packages
+  # maven (build.gradle); reads need the workflow token.
+  packages: read
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
