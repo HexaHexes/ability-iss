@@ -1,0 +1,112 @@
+name: Version bump (post-merge)
+
+# The alpha slot is owned by CI/CD, not by PRs (neoforge-mod-template #81).
+# Every push to the default branch that lands real changes bumps the -alpha.N
+# slot and commits it. Mechanics:
+#
+#   - the commit pushes with the BUMP_TOKEN secret (a fine-grained PAT owned by
+#     an account that is a bypass actor on the branch ruleset), because a
+#     GITHUB_TOKEN push is declined by protect-main's "changes must be made
+#     through a pull request" rule (GH013);
+#   - a PAT push cascades to other workflows, so the push itself triggers
+#     Release - no dispatch step here (a GITHUB_TOKEN push would not cascade,
+#     which is why release.yml keeps its workflow_dispatch entry as the retry);
+#   - that cascade re-triggers this workflow on the bump's own commit, so the
+#     job skips when the push carries the bump message - without the guard the
+#     slot would climb forever;
+#   - .github/ pushes are ignored, so template syncs and workflow edits do not
+#     burn an alpha slot.
+#
+# BUMP_TOKEN: fine-grained PAT with Contents: Read and write, owned by an
+# account that bypasses the branch ruleset, stored as a repository or
+# organization secret. Without it this job fails with instructions rather than
+# an opaque GH013.
+#
+# Owner ruling (issue #96): this workflow always advances the train - a clean
+# (x.y.z) starts x.y.(z+1)-alpha.01 - semver advances the patch (#100), and -alpha.N / -beta.N each
+# increment. Only manual bumps via the version-bump dispatch ever produce
+# a stable version.
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '.github/**'
+  # Manual retry for a failed bump: dispatch instead of waiting for the next
+  # feature push. github.event.head_commit is absent on a dispatch, so the
+  # skip guard below lets it through.
+  workflow_dispatch:
+
+permissions:
+  contents: read # the bump authenticates with BUMP_TOKEN, not this token
+
+concurrency:
+  group: version-bump-post-merge
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: version-bump
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The bump's own push cascades back into this workflow (PAT pushes trigger
+    # workflows); without this guard the slot would climb forever.
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', 'post-merge auto-bump)') }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.BUMP_TOKEN || github.token }}
+
+      - name: Bump the alpha slot
+        env:
+          BUMP_TOKEN: ${{ secrets.BUMP_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$BUMP_TOKEN" ]; then
+            echo "::error::BUMP_TOKEN secret is not set. A GITHUB_TOKEN push cannot land on this repository (branch ruleset: changes must be made through a pull request)."
+            echo "::error::Add a fine-grained PAT with Contents: Read and write, owned by a bypass actor, as the BUMP_TOKEN repository or organization secret, then re-run this workflow."
+            exit 1
+          fi
+
+          VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          echo "current mod_version: $VERSION"
+
+          case "$VERSION" in
+            *-alpha.[0-9]*)
+              # Owner ruling (issue #98): the counter is always two digits, and
+              # 10# stops a padded value (08/09) from being read as octal.
+              BASE="${VERSION%-alpha.*}"
+              N="${VERSION##*-alpha.}"
+              NEXT=$(printf '%s-alpha.%02d' "$BASE" "$((10#$N + 1))")
+              ;;
+            *-beta.[0-9]*)
+              # Owner rulings: beta trains advance automatically (#96), padded to
+              # two digits with octal-safe parsing (#98).
+              BASE="${VERSION%-beta.*}"
+              N="${VERSION##*-beta.}"
+              NEXT=$(printf '%s-beta.%02d' "$BASE" "$((10#$N + 1))")
+              ;;
+            *)
+              # Owner rulings (#96/#98/#100): a clean stable starts a train on the NEXT
+              # patch line - semver's floor for unpublished work after a release
+              # (2.2.0 -> 2.2.1-alpha.01), never a stable itself; unknown
+              # suffixes (e.g. -rc.1) stay a no-op.
+              if printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+                NEXT=$(printf '%s.%d-alpha.01' "${VERSION%.*}" "$((10#${VERSION##*.} + 1))")
+              else
+                echo "No alpha/beta train on '$VERSION' and not a clean X.Y.Z - nothing to auto-bump."
+                exit 0
+              fi
+              ;;
+          esac
+          echo "next slot: $NEXT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          sed -i "s/^mod_version=.*/mod_version=$NEXT/" gradle.properties
+          git add gradle.properties
+          git commit -m "Version slot $NEXT (post-merge auto-bump)"
+          git push origin HEAD:main
+
+          echo "pushed $NEXT - the push cascade triggers Release"
