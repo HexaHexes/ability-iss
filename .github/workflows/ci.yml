@@ -290,60 +290,51 @@ jobs:
             echo "::warning::Could not create the 'breaking' label - a fork PR has a read-only token. Add it by hand, or re-run from a branch in this repo."
           fi
 
-      - name: Enforce the version doctrine (bumps ride CI/CD)
+      - name: Enforce version bump rules
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
           HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
 
-          # On workflow_dispatch (the version-bump path: version-bump.yml runs
-          # `gh workflow run ci.yml --ref <branch>`) there is no pull_request
-          # event, so BASE falls back to the default branch NAME - and that
-          # checkout only materializes the dispatched ref. Git's revision DWIM
-          # does not walk to refs/remotes/origin/<name>, so `git diff main ...`
-          # dies with "ambiguous argument" (exit 128). Compare against the
-          # remote-tracking ref instead; fetch it if even that is missing.
-          if ! printf '%s' "$BASE" | grep -Eq '^[0-9a-f]{40}$'; then
-            BASE="origin/$BASE"
-            if ! git rev-parse --verify -q "$BASE^{commit}" >/dev/null 2>&1; then
-              git fetch --no-tags origin "+refs/heads/${BASE#origin/}:refs/remotes/origin/${BASE#origin/}"
-            fi
-          fi
+          NEW_VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          OLD_VERSION=$(git show "$BASE:gradle.properties" | grep '^mod_version=' | cut -d= -f2 | tr -d '[:space:]')
+
+          echo "base mod_version: $OLD_VERSION"
+          echo "head mod_version: $NEW_VERSION"
 
           CHANGED=$(git diff --name-only "$BASE" "$HEAD")
           echo "--- changed files ---"
           echo "$CHANGED"
 
-          if ! echo "$CHANGED" | grep -q '^gradle\.properties$'; then
-            echo "No version files in this PR. The -alpha slot is owned by CI/CD post-merge (version-bump-post-merge.yml). OK."
+          if [ "$NEW_VERSION" = "$OLD_VERSION" ]; then
+            echo "No version bump. This PR builds as an alpha (nightly). OK."
             exit 0
           fi
 
-          # The doctrine guards VERSION bumps, not the file: an identity or
-          # property edit that leaves mod_version untouched (template rename,
-          # dependency pin moves) is not a bump and must be able to ride with
-          # the changes it belongs to - splitting it would break mod_id
-          # consistency (gradle.properties vs @Mod) and fail the build.
-          NEW_VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
-          OLD_VERSION=$(git show "$BASE:gradle.properties" | grep '^mod_version=' | cut -d= -f2 | tr -d '[:space:]' || true)
+          case "$NEW_VERSION" in
+            *-alpha*|*-Alpha*|*-ALPHA*) CHANNEL="alpha" ;;
+            *-*) CHANNEL="beta" ;;
+            *) CHANNEL="stable" ;;
+          esac
 
-          if [ "$NEW_VERSION" = "$OLD_VERSION" ]; then
-            echo "gradle.properties carries identity/property edits only (mod_version unchanged at $NEW_VERSION) - not a version bump. OK."
+          echo "detected channel: $CHANNEL"
+
+          if [ "$CHANNEL" = "alpha" ]; then
+            echo "Alpha version bump. Bundling other changes is permitted. OK."
             exit 0
           fi
 
           EXTRA=$(echo "$CHANGED" | grep -v '^gradle\.properties$' | grep -v '^$' || true)
           if [ -n "$EXTRA" ]; then
-            echo "::error::Version bumps ride CI/CD after merge (neoforge-mod-template#81)."
-            echo "::error::A PR must not bundle gradle.properties with other changes. These files must not accompany it:"
+            echo "::error::A $CHANNEL version bump must change gradle.properties and nothing else."
+            echo "::error::These files must not accompany a $CHANNEL bump:"
             echo "$EXTRA"
-            echo "::error::Revert the gradle.properties change from this PR, or split the bump into its own isolated PR."
+            echo "::error::Either split the version bump into its own PR, or use an -alpha suffix to bundle it with the work."
             exit 1
           fi
 
-          NEW_VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
-          echo "Isolated version bump to $NEW_VERSION. OK (the stable/beta path)."
+          echo "Isolated $CHANNEL version bump. OK."
 
       - name: Enforce breaking changes require a major or minor bump
         env:
@@ -351,16 +342,6 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-
-          # Same dispatch fallback as above: on workflow_dispatch BASE is the
-          # default branch name, which this checkout has no local ref for -
-          # resolve it to the remote-tracking ref before `git show` uses it.
-          if ! printf '%s' "$BASE" | grep -Eq '^[0-9a-f]{40}$'; then
-            BASE="origin/$BASE"
-            if ! git rev-parse --verify -q "$BASE^{commit}" >/dev/null 2>&1; then
-              git fetch --no-tags origin "+refs/heads/${BASE#origin/}:refs/remotes/origin/${BASE#origin/}"
-            fi
-          fi
 
           NEW_VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
           OLD_VERSION=$(git show "$BASE:gradle.properties" | grep '^mod_version=' | cut -d= -f2 | tr -d '[:space:]')
