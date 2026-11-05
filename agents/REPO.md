@@ -7,7 +7,6 @@ repo's own and is edited freely; keep it aligned with the org rules rather than
 restating them.
 
 **Repo:** `HexaHexes/ability-iss` - **Mod ID:** `ability_iss` - **Branch:** `main`
-**Platform:** Minecraft 1.21.1 / NeoForge 21.1.259 / JDK 21 - **Jar:** `build/libs/ability_iss-<version>.jar`
 
 An Ability Hotbar provider for Iron's Spells 'n Spellbooks: reads the spellbook
 worn in Curios, renders its spells as the cells of a non-assignable provider
