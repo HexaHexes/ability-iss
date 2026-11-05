@@ -1,4 +1,4 @@
-# Repo rules - iss-hotbar
+# Repo rules - ability-iss
 
 Repo-specific rules and notes. The org-wide `AGENTS.md` beside this file is
 maintained in [`neoforge-mod-template`](https://github.com/HexaHexes/neoforge-mod-template)
@@ -6,7 +6,7 @@ and pulled in verbatim - **never hand-edit it.** Everything in this file is this
 repo's own and is edited freely; keep it aligned with the org rules rather than
 restating them.
 
-**Repo:** `HexaHexes/iss-hotbar` - **Mod ID:** `iss_hotbar` - **Branch:** `main`
+**Repo:** `HexaHexes/ability-iss` - **Mod ID:** `iss_hotbar` - **Branch:** `main`
 **Platform:** Minecraft 1.21.1 / NeoForge 21.1.259 / JDK 21 - **Jar:** `build/libs/iss_hotbar-<version>.jar`
 
 An Ability Hotbar provider for Iron's Spells 'n Spellbooks: reads the spellbook
