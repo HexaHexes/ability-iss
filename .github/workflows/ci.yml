@@ -320,6 +320,19 @@ jobs:
             exit 0
           fi
 
+          # The doctrine guards VERSION bumps, not the file: an identity or
+          # property edit that leaves mod_version untouched (template rename,
+          # dependency pin moves) is not a bump and must be able to ride with
+          # the changes it belongs to - splitting it would break mod_id
+          # consistency (gradle.properties vs @Mod) and fail the build.
+          NEW_VERSION=$(grep '^mod_version=' gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          OLD_VERSION=$(git show "$BASE:gradle.properties" | grep '^mod_version=' | cut -d= -f2 | tr -d '[:space:]' || true)
+
+          if [ "$NEW_VERSION" = "$OLD_VERSION" ]; then
+            echo "gradle.properties carries identity/property edits only (mod_version unchanged at $NEW_VERSION) - not a version bump. OK."
+            exit 0
+          fi
+
           EXTRA=$(echo "$CHANGED" | grep -v '^gradle\.properties$' | grep -v '^$' || true)
           if [ -n "$EXTRA" ]; then
             echo "::error::Version bumps ride CI/CD after merge (neoforge-mod-template#81)."
