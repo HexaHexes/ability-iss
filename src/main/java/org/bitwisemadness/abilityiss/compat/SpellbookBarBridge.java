@@ -85,9 +85,21 @@ public final class SpellbookBarBridge {
 
     /**
      * Register the bar, the verb's scope and the client cell provider -
-     * common setup, once. Order is load-bearing: the provider registration
-     * validates the bar registration, and constructing the provider is
-     * client-only (link-safety: it reads Minecraft's player).
+     * common setup, once. Order is load-bearing: the bar registers first
+     * (the provider registration and the scope call validate it), and the
+     * provider is constructed only on the client (link-safety: its bodies
+     * read {@code Minecraft}'s player).
+     *
+     * <p>Deliberately NOT {@link HotbarContentProviders#registerContentBar}
+     * (hotbar#116): that helper's supplier argument is evaluated on both
+     * distributions, and linking the callsite loads the provider class -
+     * whose verified bodies reference {@code LocalPlayer}, which the dist
+     * cleaner forbids on a dedicated server. The crash is a
+     * {@code BootstrapMethodError} at common setup, before the helper runs
+     * a line (observed on the alpha.47 gate; filed upstream as
+     * ability-hotbar#120 - the helper's dist safety covers invocation, not
+     * linkage). The dist-gated two-call form below is the pattern that
+     * boots on both distributions.</p>
      */
     public static void register() {
         if (registered) {
@@ -195,15 +207,15 @@ public final class SpellbookBarBridge {
      * cleared (a smaller book must not leave stale seeds). Re-run on login,
      * on inscription (the book's contents changed - the event carries no
      * stack, so the re-seed is whole-bar and idempotent) and on equipping
-     * the spellbook itself (Curios is the source of truth).
+     * the spellbook itself (Curios is the source of truth). Batched through
+     * {@code seedAll} (hotbar#116): same per-slot semantics as the loop it
+     * replaces, one snapshot echo per call instead of one per slot.
      */
     public static void seed(ServerPlayer player) {
         var book = findBook(player);
         var container = book.isEmpty() ? null : ISpellContainer.get(book);
         int active = container == null ? 0 : container.getActiveSpellCount();
-        for (int cell = 0; cell < MAX_CELLS; cell++) {
-            String ability = cell < active ? CAST_ID.toString() : null;
-            SeededAssignments.seed(player, CURIO_BAR, cell, ability);
-        }
+        SeededAssignments.seedAll(player, CURIO_BAR, MAX_CELLS,
+                cell -> cell < active ? CAST_ID.toString() : null);
     }
 }
