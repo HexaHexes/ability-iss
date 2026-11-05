@@ -55,14 +55,21 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_core"
 type = "required"
-versionRange = "[1.0.0-alpha.26,)"
+# alpha.32 is what this builds and gametests against. Its only breaking
+# change since alpha.26 (#91) reshapes ResourceConsumer, which this mod
+# never touches - the floor names what we gate on, not a code requirement.
+versionRange = "[1.0.0-alpha.32,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-versionRange = "[1.0.0-alpha.41,)"
+# alpha.46 = Provider API v2 (hotbar#118): the state-defaulted selection
+# frame this bar's cells frame with, plus the iconId/availabilityFor hooks
+# the spell cells consume. alpha.45's one-call registration and seedAll
+# ride below that floor; alpha.47 (what we compile against) is docs-only.
+versionRange = "[1.0.0-alpha.46,)"
 ordering = "AFTER"
 side = "BOTH"
 
