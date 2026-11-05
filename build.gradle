@@ -140,7 +140,7 @@ dependencies {
     def abilityCoreVersion = '1.0.0-alpha.26'
     def abilityHotbarVersion = '1.0.0-alpha.41'
 
-    // What the mod's code compiles against (the iss-hotbar#3 seams).
+    // What the mod's code compiles against (the ability-iss#3 seams).
     compileOnly "curse.maven:irons-spells-n-spellbooks-855414:${ironsSpellsFileId}"
     compileOnly "curse.maven:curios-309927:${curiosFileId}"
     compileOnly "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
@@ -228,7 +228,7 @@ publishing {
     repositories {
         maven {
             name = 'GitHubPackages'
-            url = uri('https://maven.pkg.github.com/HexaHexes/iss-hotbar')
+            url = uri('https://maven.pkg.github.com/HexaHexes/ability-iss')
             credentials {
                 username = System.getenv('GITHUB_ACTOR') ?: project.findProperty('gpr.user')
                 password = System.getenv('GITHUB_TOKEN') ?: project.findProperty('gpr.key')
