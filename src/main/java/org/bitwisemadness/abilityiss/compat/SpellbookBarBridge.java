@@ -121,18 +121,21 @@ public final class SpellbookBarBridge {
      * ISS's own spellbook texture (spells have no item form - their icons
      * are textures, ability-hotbar#115).
      *
-     * <p>The costs list is empty and the strategy is {@code "all"} (core's
-     * documented default, resolved at registration): the cast charges no
-     * core resources - mana is ISS's own, charged inside its own pipeline
-     * (this handler is {@code ChargingModel.NATIVE}; the hotbar#119
-     * boundary says costs live with the domain). The overlay's mana badge
-     * comes from the per-cell availability, not from this declaration.</p>
+     * <p>The costs list is empty, the strategy is {@code "all"} (core's
+     * documented default, resolved at registration) and the amount
+     * resolver is {@code "static"} (the built-in identity): the cast
+     * charges no core resources - mana is ISS's own, charged inside its
+     * own pipeline (this handler is {@code ChargingModel.NATIVE}; the
+     * hotbar#119 boundary says costs live with the domain). The
+     * overlay's mana badge comes from the per-cell availability, not
+     * from this declaration.</p>
      *
-     * <p>Shape note: core alpha.34 (multi-entry costs) and alpha.35
-     * (consumption strategy) changed this constructor from 7 to 8
-     * arguments; the pre-35 binary crashed at {@code RegisterEvent} with
-     * {@code NoSuchMethodError} in the pack (Tensura RPG, 2026-11-06) -
-     * hence the alpha.38 pin the toml documents.</p>
+     * <p>Shape note: core's resource series reshaped this constructor
+     * three times in a day - alpha.34 (costs list), alpha.35
+     * (consumption strategy), alpha.39 (amount resolver) - and each
+     * break crashed the older binary at {@code RegisterEvent} with
+     * {@code NoSuchMethodError} in production (Tensura RPG,
+     * 2026-11-06); hence the alpha.39 pin the toml documents.</p>
      */
     public static void registerDefinitions(RegisterEvent event) {
         event.register(AbilityRegistries.ABILITY_REGISTRY_KEY, CAST_ID,
@@ -144,6 +147,7 @@ public final class SpellbookBarBridge {
                         ActivationType.INSTANT,
                         List.of(),
                         "all",
+                        "static",
                         Set.of("spell", "cast"),
                         Map.of()));
     }
