@@ -1,6 +1,7 @@
 package org.bitwisemadness.abilityiss.compat;
 
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
+import io.redspace.ironsspellbooks.api.spells.SpellData;
 import io.redspace.ironsspellbooks.api.util.Utils;
 import java.util.Map;
 import java.util.Set;
@@ -202,20 +203,39 @@ public final class SpellbookBarBridge {
     }
 
     /**
-     * Seed the whole bar from the equipped book (#3): cells
-     * {@code 0..active-1} carry the cast verb; every other possible cell is
-     * cleared (a smaller book must not leave stale seeds). Re-run on login,
-     * on inscription (the book's contents changed - the event carries no
-     * stack, so the re-seed is whole-bar and idempotent) and on equipping
-     * the spellbook itself (Curios is the source of truth). Batched through
-     * {@code seedAll} (hotbar#116): same per-slot semantics as the loop it
-     * replaces, one snapshot echo per call instead of one per slot.
+     * Seed the whole bar from the equipped book (#3): every cell whose book
+     * slot holds a castable spell carries the cast verb; every other cell is
+     * cleared (a smaller book or a removed spell must not leave stale
+     * seeds). Per-slot, not a prefix count: a book with a gap (a spell
+     * removed mid-book) seeds around the gap, because the bar's cells are
+     * the book's spells <i>per slot</i> - the same predicate the client
+     * provider draws cells by, so seed and display can never disagree.
+     * Re-run on login, on inscription (the book's contents changed - the
+     * event carries no stack, so the re-seed is whole-bar and idempotent)
+     * and on equipping the spellbook itself (Curios is the source of
+     * truth). Batched through {@code seedAll} (hotbar#116): same per-slot
+     * semantics as the loop it replaces, one snapshot echo per call instead
+     * of one per slot.
      */
     public static void seed(ServerPlayer player) {
         var book = findBook(player);
         var container = book.isEmpty() ? null : ISpellContainer.get(book);
-        int active = container == null ? 0 : container.getActiveSpellCount();
         SeededAssignments.seedAll(player, CURIO_BAR, MAX_CELLS,
-                cell -> cell < active ? CAST_ID.toString() : null);
+                cell -> isSpellCell(container, cell) ? CAST_ID.toString() : null);
+    }
+
+    /**
+     * Whether one book slot holds a cell-worthy spell: present, not locked,
+     * resolvable - the definition both the seeding (server) and the client
+     * cell reads (icons, overlays) use, so a cell is a spell everywhere or
+     * nowhere.
+     */
+    public static boolean isSpellCell(ISpellContainer container, int index) {
+        if (container == null || index < 0 || index >= container.getMaxSpellCount()) {
+            return false;
+        }
+        SpellData data = container.getSpellAtIndex(index);
+        return data != null && data != SpellData.EMPTY
+                && !data.isLocked() && data.getSpell() != null;
     }
 }
