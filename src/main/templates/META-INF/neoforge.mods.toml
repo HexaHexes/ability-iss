@@ -55,25 +55,28 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_core"
 type = "required"
-# alpha.38 is what this builds and gametests against (the floor names what
-# we gate on). The alpha.34/35 series reshaped AbilityDefinition's
-# constructor (costs list + consumption strategy): the pre-35 binary
-# crashed at RegisterEvent with NoSuchMethodError in-game (Tensura RPG
-# run, 2026-11-06). A floor cannot defend against pre-1.0 breaking changes
-# inside its range - compile against what the pack runs, gate, re-pin with
-# the fleet.
-versionRange = "[1.0.0-alpha.38,)"
+# alpha.39 is what this builds and gametests against (the floor names what
+# we gate on). The resource series reshaped AbilityDefinition's canonical
+# constructor three times in a day - alpha.34 (costs list), alpha.35
+# (consumption strategy), alpha.39 (amount resolver) - and each break
+# crashed the older binary at RegisterEvent with NoSuchMethodError in
+# production (Tensura RPG, 2026-11-06). A floor cannot defend against
+# pre-1.0 breaking changes inside its range - compile against what the
+# pack runs, gate, re-pin with the fleet.
+versionRange = "[1.0.0-alpha.39,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-# alpha.46 = Provider API v2 (hotbar#118): the state-defaulted selection
-# frame this bar's cells frame with, plus the iconId/availabilityFor hooks
-# the spell cells consume. alpha.45's one-call registration and seedAll
-# ride below that floor; alpha.47 (what we compile against) is docs-only.
-versionRange = "[1.0.0-alpha.46,)"
+# alpha.49: the oldest hotbar whose renderer works against this mod's
+# core floor - 46-48 invoke AbilityDefinition.cost(), removed in core
+# alpha.34 (hotbar#122, fixed in 49), so they crash the frame against
+# core >= 34. alpha.46 = Provider API v2 (hotbar#118: state-defaulted
+# selection frame, iconId, availabilityFor - the hooks this mod's cells
+# consume); 49 is also what we compile and gametest against.
+versionRange = "[1.0.0-alpha.49,)"
 ordering = "AFTER"
 side = "BOTH"
 
