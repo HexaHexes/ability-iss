@@ -34,11 +34,13 @@ import org.jetbrains.annotations.Nullable;
  * ({@link SpellbookBarBridge#isSpellCell}).</p>
  *
  * <p><b>Per-cell overlays</b> (the {@code availabilityFor} hook): each
- * cell's cooldown sweep, mana-cost badge and castability tint come from
- * ISS's own client-synced state - {@link ClientMagicData#getCooldowns()}
+ * cell's cooldown sweep and castability tint come from ISS's own
+ * client-synced state - {@link ClientMagicData#getCooldowns()}
  * (what ISS's HUD reads) and {@link ClientMagicData#getPlayerMana()} - so
- * the bar can never disagree with ISS's own display. The mapping itself is
- * pure {@link SpellCellOverlays}; this class only does the reads.</p>
+ * the bar can never disagree with ISS's own display. There is deliberately
+ * no cost badge: the renderer's badge is an unannotated black strip over
+ * the icon (see {@link SpellCellOverlays}). The mapping itself is pure
+ * {@link SpellCellOverlays}; this class only does the reads.</p>
  *
  * <p>The frame follows the wheel's selection with no code here: the bar
  * layer supplies the stored bar's {@code selectedSlot} as the default

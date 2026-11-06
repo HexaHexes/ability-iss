@@ -215,22 +215,21 @@ public final class IssHotbarGameTests {
     }
 
     /**
-     * The mana-cost badge (ability-iss#3): a spell with a mana cost badges
-     * the irons_spellbooks:mana resource with its amount; a free spell
-     * stays unknown - no badge for nothing.
+     * No cost badge over spell icons (ability-iss#3): the bar's badge is
+     * an unannotated 4px black strip across the cell bottom, which over a
+     * spell icon reads as a rendering bug - exactly how it was found (pack
+     * run, 2026-11-06). The per-cell cost therefore stays unknown
+     * (REQ-HOT-08: no overlay rather than noise), for costly and free
+     * spells alike.
      */
     @GameTest(template = "empty")
-    public static void overlayBadgesManaCosts(GameTestHelper helper) {
-        var costly = SpellCellOverlays.forCell(0, 0, 25, false, 100f);
-        var cost = costly.cost().knownValue().orElse(null);
-        check(cost != null, "a mana cost must badge");
-        check(SpellCellOverlays.MANA_RESOURCE.equals(cost.resourceId()),
-                "the badge must name ISS's mana resource, got " + cost.resourceId());
-        check(Math.abs(cost.amount() - 25.0) < 1e-9,
-                "the badge must carry the cost amount, got " + cost.amount());
+    public static void overlayNeverBadgesCostOverSpellIcons(GameTestHelper helper) {
+        var costly = SpellCellOverlays.forCell(0, 0, 50, false, 100f);
+        check(costly.cost().knownValue().isEmpty(),
+                "a spell cell must not badge a cost - the badge renders as a black bar over the icon");
 
         var free = SpellCellOverlays.forCell(0, 0, 0, false, 100f);
-        check(free.cost().knownValue().isEmpty(), "a free spell gets no badge");
+        check(free.cost().knownValue().isEmpty(), "free spells stay unknown too");
 
         helper.succeed();
     }

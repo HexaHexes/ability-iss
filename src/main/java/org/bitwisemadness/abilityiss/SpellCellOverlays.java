@@ -3,7 +3,6 @@ package org.bitwisemadness.abilityiss;
 import org.bitwisemadness.abilitycore.api.AbilityAvailability;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.Metric;
-import org.bitwisemadness.abilitycore.api.ResourceCost;
 
 /**
  * The per-cell overlay tuple for one spellbook bar cell (ability-iss#3,
@@ -12,8 +11,9 @@ import org.bitwisemadness.abilitycore.api.ResourceCost;
  * <p>Pure decision, no Minecraft or Iron's Spells imports: the client
  * provider does the ISS reads (client-synced cooldowns, synced mana, the
  * cell's {@code SpellData}) and this class maps them to the core tuple the
- * bar renders. Kept import-clean so the plain JUnit suite can pin the
- * mapping - the fraction direction and the REQ-HOT-08 honesty rule
+ * bar renders. Kept import-clean so the mapping stays headless-pinnable -
+ * the gametest suite pins it (plain JUnit cannot construct core's tuple
+ * types), and the fraction direction plus the REQ-HOT-08 honesty rule
  * (unknown renders nothing, never a wrong value) are the parts worth
  * locking down.</p>
  *
@@ -24,10 +24,13 @@ import org.bitwisemadness.abilitycore.api.ResourceCost;
  *       ISS's {@code getCooldownPercent} (remaining/total). Unknown when no
  *       cooldown entry exists: no overlay, not a fake full or empty
  *       sweep.</li>
- *   <li><b>Cost</b> is the spell's mana cost when it has one, badged as an
- *       {@code irons_spellbooks:mana} resource (the renderer draws the
- *       badge bar; the id stays self-describing for any future resolution).
- *       Free spells stay unknown - no badge for nothing.</li>
+ *   <li><b>Cost</b> stays {@code unknown} deliberately: the bar's cost
+ *       badge is an unannotated 4px black strip ({@code 0xCC000000})
+ *       drawn across the cell bottom - over a spell icon it reads as a
+ *       rendering bug, which is exactly how it was found (pack run,
+ *       2026-11-06). ISS's mana is ISS's own pipeline's story
+ *       (hotbar#119), and REQ-HOT-08 prefers no overlay to noise the
+ *       renderer cannot annotate.</li>
  *   <li><b>Availability</b> dims the cell (the renderer's unavailable tint)
  *       when the spell cannot be cast right now: locked, or mana below the
  *       cost. Cooldowns are deliberately not a state - their sweep already
@@ -35,9 +38,6 @@ import org.bitwisemadness.abilitycore.api.ResourceCost;
  * </ul>
  */
 public final class SpellCellOverlays {
-
-    /** The resource id mana costs badge under (ISS owns mana; core has no mana pair). */
-    public static final String MANA_RESOURCE = "irons_spellbooks:mana";
 
     private SpellCellOverlays() {
     }
@@ -48,6 +48,8 @@ public final class SpellCellOverlays {
      * @param cooldownRemaining ticks left on the spell's cooldown (0 = none)
      * @param cooldownTotal     the cooldown's total ticks (0 = none)
      * @param manaCost          the spell's mana cost at its inscribed level
+     *                          (drives the unaffordable verdict only - never
+     *                          a badge)
      * @param locked            whether the cell's spell is locked in its book
      * @param mana              the player's current (synced) mana
      * @return the tuple to draw with
@@ -63,9 +65,6 @@ public final class SpellCellOverlays {
         } else {
             cooldown = Metric.unknown();
         }
-        Metric<ResourceCost> cost = manaCost > 0
-                ? Metric.known(new ResourceCost(MANA_RESOURCE, manaCost))
-                : Metric.unknown();
         AvailabilityState state;
         if (locked) {
             state = AvailabilityState.unavailable("spell locked");
@@ -74,6 +73,6 @@ public final class SpellCellOverlays {
         } else {
             state = AvailabilityState.available();
         }
-        return new AbilityAvailability(cooldown, cost, state);
+        return new AbilityAvailability(cooldown, Metric.unknown(), state);
     }
 }
