@@ -3,6 +3,7 @@ package org.bitwisemadness.abilityiss.compat;
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
 import io.redspace.ironsspellbooks.api.spells.SpellData;
 import io.redspace.ironsspellbooks.api.util.Utils;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
@@ -119,6 +120,19 @@ public final class SpellbookBarBridge {
      * mod-bus {@code RegisterEvent} for core's abilities key. The icon is
      * ISS's own spellbook texture (spells have no item form - their icons
      * are textures, ability-hotbar#115).
+     *
+     * <p>The costs list is empty and the strategy is {@code "all"} (core's
+     * documented default, resolved at registration): the cast charges no
+     * core resources - mana is ISS's own, charged inside its own pipeline
+     * (this handler is {@code ChargingModel.NATIVE}; the hotbar#119
+     * boundary says costs live with the domain). The overlay's mana badge
+     * comes from the per-cell availability, not from this declaration.</p>
+     *
+     * <p>Shape note: core alpha.34 (multi-entry costs) and alpha.35
+     * (consumption strategy) changed this constructor from 7 to 8
+     * arguments; the pre-35 binary crashed at {@code RegisterEvent} with
+     * {@code NoSuchMethodError} in the pack (Tensura RPG, 2026-11-06) -
+     * hence the alpha.38 pin the toml documents.</p>
      */
     public static void registerDefinitions(RegisterEvent event) {
         event.register(AbilityRegistries.ABILITY_REGISTRY_KEY, CAST_ID,
@@ -128,7 +142,8 @@ public final class SpellbookBarBridge {
                                 "textures/item/copper_spell_book.png"),
                         ResourceLocation.fromNamespaceAndPath("ability_iss", "spellbook"),
                         ActivationType.INSTANT,
-                        null,
+                        List.of(),
+                        "all",
                         Set.of("spell", "cast"),
                         Map.of()));
     }
