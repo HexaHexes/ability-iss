@@ -1,8 +1,11 @@
 package org.bitwisemadness.abilityiss.compat;
 
+import io.redspace.ironsspellbooks.api.magic.MagicData;
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
 import io.redspace.ironsspellbooks.api.spells.SpellData;
 import io.redspace.ironsspellbooks.api.util.Utils;
+import io.redspace.ironsspellbooks.capabilities.magic.CooldownInstance;
+import io.redspace.ironsspellbooks.capabilities.magic.PlayerCooldowns;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +30,7 @@ import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AvailabilityProviders;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.ChargingModel;
+import org.bitwisemadness.abilitycore.api.CooldownOwners;
 import org.bitwisemadness.abilitycore.api.Metric;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
@@ -168,6 +172,10 @@ public final class SpellbookBarBridge {
         handlersRegistered = true;
         AbilityCore.HANDLERS.register(CAST_ID, SpellbookBarBridge::cast, ChargingModel.NATIVE);
         AvailabilityProviders.declare(CAST_ID, SpellbookBarBridge::availability);
+        // Cooldown defers to each spell's own window (core's HANDLER
+        // contract, alpha.45): the request's cell names the spell, so
+        // ISS's per-spell state gates - never an ability-global guess.
+        CooldownOwners.declareHandler(CAST_ID, SpellbookBarBridge::cooldownRemaining);
         // The unlock contract's read seam (core#117): having the cast
         // ability IS wearing a book with a castable spell - hotbar#135's
         // menu and assignment validation ask core instead of ISS.
@@ -212,6 +220,31 @@ public final class SpellbookBarBridge {
             return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
         }
         return ActivationResult.ACTED;
+    }
+
+    /**
+     * The per-spell cooldown gate (core's HANDLER contract, alpha.45): the
+     * request's cell names the spell, so the answer is that spell's own
+     * remaining from ISS's server-side window - the same store the native
+     * cast gate reads. No book, no cell, or an unreadable capability
+     * answers 0 (not cooling): the cast's own slot/spell gates refuse
+     * those cases with their outcomes, never a fabricated cooldown.
+     */
+    private static long cooldownRemaining(ActivationRequest request, ServerPlayer player) {
+        var book = findBook(player);
+        var container = book.isEmpty() ? null : ISpellContainer.get(book);
+        int slot = request.slotContext();
+        if (!isSpellCell(container, slot)) {
+            return 0L;
+        }
+        MagicData magicData = MagicData.getPlayerMagicData(player);
+        PlayerCooldowns cooldowns = magicData == null ? null : magicData.getPlayerCooldowns();
+        if (cooldowns == null) {
+            return 0L;
+        }
+        SpellData data = container.getSpellAtIndex(slot);
+        CooldownInstance entry = cooldowns.getSpellCooldowns().get(data.getSpell().getSpellId());
+        return entry == null ? 0L : entry.getCooldownRemaining();
     }
 
     /**

@@ -26,6 +26,7 @@ import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
+import org.bitwisemadness.abilitycore.api.CooldownOwners;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
 import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
@@ -86,6 +87,10 @@ public final class IssHotbarGameTests {
 
         check(AbilityUnlocks.has(SpellbookBarBridge.CAST_ID),
                 "the unlock provider must be declared for cast (core#117)");
+
+        check(CooldownOwners.ownerOf(SpellbookBarBridge.CAST_ID)
+                        == CooldownOwners.Owner.HANDLER,
+                "cast must defer its cooldown to the per-spell handler (alpha.45)");
 
         helper.succeed();
     }
