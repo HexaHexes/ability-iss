@@ -1,22 +1,44 @@
 # Ability ISS
 
-An Ability Hotbar provider for Iron's Spells 'n Spellbooks: wear a spellbook
-in the Curios slot and cast its spells from a cycleable provider bar - the
-same non-assignable content-bar model as Pseudore Curios' core bar.
+A provider addon for [Ability Hotbar](https://github.com/HexaHexes/ability-hotbar)
+that gives [Iron's Spells 'n Spellbooks](https://www.curseforge.com/minecraft/mc-mods/irons-spells-n-spellbooks)
+a second hotbar: wear a spellbook in the Curios `spellbook` slot and its
+spells appear as a cycleable, non-assignable bar - spell icons, per-spell
+cooldowns and mana - cast through ISS's own pipeline, so the bar and ISS's
+own wheel, keybinds and UI coexist instead of competing. Built for the
+Tensura RPG pack.
 
-> **Status**: Phase 0 - the ISS API investigation (issue #1) before any
-> gameplay code; the design issue follows its findings.
+## What it does
 
-## What it does (planned)
-
-- Reads the spellbook worn in Curios and exposes its spells as the cells of
-  a non-assignable Ability Hotbar bar: one cell per spell, the cell count
-  taken from the equipped book's own capacity.
-- Casting dispatches through Ability Core with the cell index as the
-  activation's slot context, so the bar always names its target explicitly
-  and stale cells refuse fail-closed.
-- Per-spell cooldown and mana project into the bar's overlays (pending
-  ability-hotbar's per-cell availability).
+- **The bar** (`ability_iss:spellbook`): one cell per slot of the equipped
+  book, the cell count taken from the book's own capacity and clamped to
+  `[1, 18]`. The bar never appears in the assignment menu, the wheel cycles
+  to it like any other bar, and one selection frame marks the cell a press
+  acts on. Without a worn book the bar counts as empty and the wheel skips
+  it.
+- **Cells draw the spells themselves**: each cell shows the spell's own
+  icon texture (spells have no item form), plus a per-spell cooldown sweep
+  and a dim for a locked spell or mana below its cost - all read from
+  ISS's own client-synced state, so the bar can never disagree with ISS's
+  HUD. No cost badge is drawn over spell icons (the badge is an
+  unannotated strip; REQ-HOT-08 prefers no overlay to noise).
+- **Casting** dispatches through Ability Core with the cell index as the
+  activation's slot context, then delegates to ISS's own quick-cast: mana,
+  cooldown, cast-in-progress and every refusal message stay ISS's pipeline,
+  and the bar only carries the outcome (hotbar fires intents only). Slot
+  dispatch runs fail-closed through Ability Core's slot gate - a stale
+  cell, a missing context or an empty book refuses instead of guessing.
+- **The bar tracks the book**: content re-seeds on login, whenever the
+  book's spells change (inscription), and whenever the spellbook is
+  equipped or unequipped - per slot, so a removed spell clears its own cell
+  and never a prefix of them.
+- **Coexistence is deliberate**: ISS's spell wheel, cast keybinds and
+  screens are untouched - the bar is additive. If this bar should be the
+  only spell display, turn ISS's own spell bar off in its client config
+  (`config/irons_spellbooks-client.toml`, `[UI.SpellBar]`,
+  `spellBarDisplay = "Never"`).
+- Books larger than nine slots render as nine-slot segments with one
+  selector, like every other bar (hotbar#86).
 
 ## Dependencies
 
@@ -24,29 +46,20 @@ same non-assignable content-bar model as Pseudore Curios' core bar.
 |---|---|---|
 | Required | Minecraft | - |
 | Required | NeoForge | - |
-| Required | Ability Hotbar | bar registration, content provider, seeded assignments |
-| Required | Ability Core | activation request/result and availability |
-| Required | Iron's Spells 'n Spellbooks | spellbook contents and spell casting |
-| Required | Curios | locating the equipped spellbook |
+| Required | Curios | The `spellbook` slot the book wears in |
+| Required | Iron's Spells 'n Spellbooks | Spellbook contents (`ISpellContainer`) and the cast itself (`serverSideInitiateQuickCast`) - the addon delegates, it never reimplements |
+| Required | Ability Hotbar | The bar: registration, the content-provider cells, seeded verbs, and the icon/overlay hooks the cells draw through |
+| Required | Ability Core | The activation seam: slot gate, request/result vocabulary, availability tuple |
 
-## In-game config editing
-
-Mods built on this template can be edited in-game with
-[Configured](https://www.curseforge.com/minecraft/mc-mods/configured) - install
-it like any other mod; it adds no code to this one. Open the mod list, select a
-mod, press Config, and change values directly: Configured writes through
-NeoForge's config system, so a reload applies the new values without restarting
-the game.
-
-This mod ships the config-screen background pre-wired in
-`src/main/templates/META-INF/neoforge.mods.toml`
-(`[modproperties.${mod_id}] configuredBackground`) - point it at any texture you
-like. Note Configured only shows a menu for mods that actually register a
-config: a mod with no registered settings has nothing to show.
+Ability Core and Ability Hotbar resolve from this org's GitHub Packages
+maven (they are not published to CurseForge or Modrinth), so CI needs the
+workflow token (already wired in `ci.yml`) and a local build needs
+`gpr.user` / `gpr.key` in `~/.gradle/gradle.properties`.
 
 ## Credits
 
 - Built on [NeoForge](https://neoforged.net/).
+- Derived from [neoforge-mod-template](https://github.com/HexaHexes/neoforge-mod-template).
 
 ## License
 
