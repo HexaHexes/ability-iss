@@ -21,6 +21,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import org.bitwisemadness.abilitycore.AbilityCore;
+import org.bitwisemadness.abilitycore.api.AbilityUnlocks;
 import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
@@ -82,6 +83,9 @@ public final class IssHotbarGameTests {
             check(HotbarContentProviders.get(SpellbookBarBridge.CURIO_BAR).isPresent(),
                     "the cell provider must be registered for the bar (#3)");
         }
+
+        check(AbilityUnlocks.has(SpellbookBarBridge.CAST_ID),
+                "the unlock provider must be declared for cast (core#117)");
 
         helper.succeed();
     }
