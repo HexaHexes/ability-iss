@@ -1,11 +1,21 @@
 package org.bitwisemadness.abilityiss.client;
 
+import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
+import io.redspace.ironsspellbooks.api.spells.SpellData;
 import io.redspace.ironsspellbooks.api.util.Utils;
+import io.redspace.ironsspellbooks.capabilities.magic.CooldownInstance;
+import io.redspace.ironsspellbooks.capabilities.magic.PlayerCooldowns;
+import io.redspace.ironsspellbooks.player.ClientMagicData;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import org.bitwisemadness.abilitycore.api.AbilityAvailability;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProvider;
+import org.bitwisemadness.abilityiss.SpellCellOverlays;
 import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * What the spellbook bar shows (#3): the equipped book's capacity as
@@ -14,11 +24,21 @@ import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
  * single empty cell behind {@link #hasContent()} being false, so the bar
  * never shows for a player wearing nothing.
  *
- * <p><b>Cells draw no icons yet</b>: spells are textures, not ItemStacks,
- * and the provider contract only renders stacks - the icon hook lands with
- * ability-hotbar#115 (recorded verdict: ISS's {@code getSpellIconResource}
- * returns a texture). Until then the bar shows its chrome, frame and
- * overlays; the stacks are deliberately empty.</p>
+ * <p><b>Cells draw spell icons</b> (ability-hotbar#115's {@code iconId}
+ * hook): an ISS spell has no item form - its icon is the texture
+ * {@code getSpellIconResource()} names ({@code textures/gui/spell_icons/}).
+ * The layer consults the icon only when the cell's stack is empty, and
+ * these stacks are always empty by design. Empty cells (unfilled or locked
+ * slots) render the hotbar's own chrome - a cell is a spell everywhere or
+ * nowhere, the same predicate the server seeds by
+ * ({@link SpellbookBarBridge#isSpellCell}).</p>
+ *
+ * <p><b>Per-cell overlays</b> (the {@code availabilityFor} hook): each
+ * cell's cooldown sweep, mana-cost badge and castability tint come from
+ * ISS's own client-synced state - {@link ClientMagicData#getCooldowns()}
+ * (what ISS's HUD reads) and {@link ClientMagicData#getPlayerMana()} - so
+ * the bar can never disagree with ISS's own display. The mapping itself is
+ * pure {@link SpellCellOverlays}; this class only does the reads.</p>
  *
  * <p>The frame follows the wheel's selection with no code here: the bar
  * layer supplies the stored bar's {@code selectedSlot} as the default
@@ -47,9 +67,44 @@ public final class SpellbookBarContentProvider implements HotbarContentProvider 
 
     @Override
     public ItemStack slotStack(int index) {
-        // Spells are textures, not items: cells stay blank until
-        // ability-hotbar#115's icon hook lands (see class javadoc).
+        // Spells are textures, not items - icons carry the cells (iconId);
+        // the stack path stays empty so the item renderer never runs.
         return ItemStack.EMPTY;
+    }
+
+    @Override
+    @Nullable
+    public ResourceLocation iconId(int index) {
+        var container = currentContainer();
+        if (container == null || !SpellbookBarBridge.isSpellCell(container, index)) {
+            return null;
+        }
+        return container.getSpellAtIndex(index).getSpell().getSpellIconResource();
+    }
+
+    @Override
+    @Nullable
+    public AbilityAvailability availabilityFor(@Nullable Player player, int index) {
+        if (player == null) {
+            // No player, no reads: the global tuple (book-has-spells) stays
+            // the answer rather than a fabricated one.
+            return null;
+        }
+        var container = currentContainer();
+        if (container == null || !SpellbookBarBridge.isSpellCell(container, index)) {
+            return null;
+        }
+        SpellData data = container.getSpellAtIndex(index);
+        AbstractSpell spell = data.getSpell();
+        PlayerCooldowns cooldowns = ClientMagicData.getCooldowns();
+        CooldownInstance entry = cooldowns == null
+                ? null
+                : cooldowns.getSpellCooldowns().get(spell.getSpellId());
+        int remaining = entry == null ? 0 : entry.getCooldownRemaining();
+        int total = entry == null ? 0 : entry.getSpellCooldown();
+        int manaCost = spell.getManaCost(data.getLevel());
+        float mana = ClientMagicData.getPlayerMana();
+        return SpellCellOverlays.forCell(remaining, total, manaCost, data.isLocked(), mana);
     }
 
     @Override

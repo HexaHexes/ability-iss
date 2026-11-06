@@ -125,10 +125,6 @@ configurations {
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.2')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
     // Pins live here rather than in gradle.properties: the version doctrine
     // keeps that file for version bumps only (ci.yml), so pins ride with the
     // dependency that needs them. File ids are the pack's installed files.
@@ -139,6 +135,10 @@ dependencies {
     def curiosFileId = '6529130'          // curios-neoforge-9.5.1+1.21.1
     def abilityCoreVersion = '1.0.0-alpha.32'
     def abilityHotbarVersion = '1.0.0-alpha.47'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // What the mod's code compiles against (the ability-iss#3 seams).
     compileOnly "curse.maven:irons-spells-n-spellbooks-855414:${ironsSpellsFileId}"
@@ -176,7 +176,7 @@ tasks.register('prepareGametestMods', Sync) {
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     dependsOn 'prepareGametestMods'
 
-    def expectedTests = 4
+    def expectedTests = 7
     doLast {
         def log = file('run/logs/latest.log')
         if (!log.exists()) {

@@ -24,12 +24,14 @@ import org.bitwisemadness.abilitycore.AbilityCore;
 import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
+import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
 import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 import org.bitwisemadness.abilityhotbar.state.SeededAssignments;
 import org.bitwisemadness.abilityiss.IssHotbar;
+import org.bitwisemadness.abilityiss.SpellCellOverlays;
 import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.event.CurioChangeEvent;
@@ -86,7 +88,8 @@ public final class IssHotbarGameTests {
 
     /**
      * Seeding tracks the book (#3): a worn two-spell book seeds cells
-     * 0 and 1 with cast, cell 2 stays clear, and unwearing clears
+     * 0 and 1 with cast, cell 2 stays clear, a gap in the book seeds
+     * around itself (per-slot, not a prefix count), and unwearing clears
      * everything (hotbar#92's idempotent overwrite).
      */
     @GameTest(template = "empty")
@@ -112,9 +115,30 @@ public final class IssHotbarGameTests {
         check(assignments.length < 3 || assignments[2].abilityId() == null,
                 "cell 2 (no spell) must stay unassigned");
 
+        // A gap (spell removed mid-book): cells are the book's spells per
+        // slot - the removed spell's cell clears, the spells after it seed.
+        var gapped = spellBookWith(helper, 3, 4);
+        var mutable = ISpellContainer.get(gapped).mutableCopy();
+        check(mutable.removeSpellAtIndex(1), "the fixture gap must remove a spell");
+        ISpellContainer.set(gapped, mutable.toImmutable());
+        equipSpellbook(player, gapped);
+        NeoForge.EVENT_BUS.post(new CurioChangeEvent(
+                player, Curios.SPELLBOOK_SLOT, 0, ItemStack.EMPTY, gapped));
+        var gappedBar = SeededAssignments.storedBar(
+                player.getData(stateKey.get()), SpellbookBarBridge.CURIO_BAR);
+        check(gappedBar.isPresent(), "the gapped book must still seed the bar's entry");
+        var gappedCells = gappedBar.get().assignments();
+        check(gappedCells.length > 0
+                        && SpellbookBarBridge.CAST_ID.equals(gappedCells[0].abilityId()),
+                "gap cell 0 must carry cast");
+        check(gappedCells.length < 2 || gappedCells[1].abilityId() == null,
+                "the removed spell's cell must stay clear (per-slot seed)");
+        check(gappedCells.length < 3 || SpellbookBarBridge.CAST_ID.equals(gappedCells[2].abilityId()),
+                "the spell after the gap must seed");
+
         equipSpellbook(player, ItemStack.EMPTY);
         NeoForge.EVENT_BUS.post(new CurioChangeEvent(
-                player, Curios.SPELLBOOK_SLOT, 0, book, ItemStack.EMPTY));
+                player, Curios.SPELLBOOK_SLOT, 0, gapped, ItemStack.EMPTY));
         var cleared = SeededAssignments.storedBar(
                 player.getData(stateKey.get()), SpellbookBarBridge.CURIO_BAR);
         check(cleared.isEmpty()
@@ -158,6 +182,79 @@ public final class IssHotbarGameTests {
                 ActivationRequest.of(SpellbookBarBridge.CAST_ID, source).withSlot(1), player);
         check(emptyCell.outcome() == ActivationOutcome.REFUSED_UNAVAILABLE,
                 "an unfilled cell must refuse UNAVAILABLE, got " + emptyCell.outcome());
+
+        helper.succeed();
+    }
+
+    /**
+     * The cooldown sweep's fraction direction (ability-iss#3, hotbar#115's
+     * availabilityFor): readiness = elapsed, not remaining - 0 reads "just
+     * cast" (the renderer's full cover), 1 reads "ready" (clear), no entry
+     * reads unknown (REQ-HOT-08: no overlay, never a fake one), and a stale
+     * entry clamps instead of drawing outside the renderer's [0,1].
+     */
+    @GameTest(template = "empty")
+    public static void overlaySweepRunsByReadiness(GameTestHelper helper) {
+        var none = SpellCellOverlays.forCell(0, 0, 25, false, 100f);
+        check(none.cooldown().knownValue().isEmpty(),
+                "no cooldown entry must leave the sweep unknown (REQ-HOT-08)");
+
+        var half = SpellCellOverlays.forCell(500, 1000, 25, false, 100f);
+        checkFraction(0.5, half.cooldown().knownValue(),
+                "half-remaining must read 0.5 readiness");
+
+        var fresh = SpellCellOverlays.forCell(1000, 1000, 25, false, 100f);
+        checkFraction(0.0, fresh.cooldown().knownValue(),
+                "just-cast must read 0.0 readiness (fully covered)");
+
+        var stale = SpellCellOverlays.forCell(2000, 1000, 25, false, 100f);
+        checkFraction(0.0, stale.cooldown().knownValue(),
+                "a stale entry must clamp to 0, never draw a negative sweep");
+
+        helper.succeed();
+    }
+
+    /**
+     * The mana-cost badge (ability-iss#3): a spell with a mana cost badges
+     * the irons_spellbooks:mana resource with its amount; a free spell
+     * stays unknown - no badge for nothing.
+     */
+    @GameTest(template = "empty")
+    public static void overlayBadgesManaCosts(GameTestHelper helper) {
+        var costly = SpellCellOverlays.forCell(0, 0, 25, false, 100f);
+        var cost = costly.cost().knownValue().orElse(null);
+        check(cost != null, "a mana cost must badge");
+        check(SpellCellOverlays.MANA_RESOURCE.equals(cost.resourceId()),
+                "the badge must name ISS's mana resource, got " + cost.resourceId());
+        check(Math.abs(cost.amount() - 25.0) < 1e-9,
+                "the badge must carry the cost amount, got " + cost.amount());
+
+        var free = SpellCellOverlays.forCell(0, 0, 0, false, 100f);
+        check(free.cost().knownValue().isEmpty(), "a free spell gets no badge");
+
+        helper.succeed();
+    }
+
+    /**
+     * The castability verdict (ability-iss#3): mana below cost dims the
+     * cell (an Unavailable verdict, the renderer's tint), a locked spell
+     * dims, but a cooling spell with mana does not - its sweep already
+     * shows the cooldown, and ISS's own HUD does not dim for cooldowns
+     * either.
+     */
+    @GameTest(template = "empty")
+    public static void overlayDimsUnaffordableAndLockedOnly(GameTestHelper helper) {
+        var broke = SpellCellOverlays.forCell(0, 0, 50, false, 10f);
+        check(!broke.availability().isAvailable(), "mana below cost must dim");
+        check(broke.availability() instanceof AvailabilityState.Unavailable,
+                "the dim must be an Unavailable verdict");
+
+        var locked = SpellCellOverlays.forCell(0, 0, 0, true, 100f);
+        check(!locked.availability().isAvailable(), "a locked spell must dim");
+
+        var coolingButRich = SpellCellOverlays.forCell(500, 1000, 25, false, 100f);
+        check(coolingButRich.availability().isAvailable(),
+                "cooldown has its own sweep - it must not also dim the cell");
 
         helper.succeed();
     }
@@ -284,5 +381,12 @@ public final class IssHotbarGameTests {
         if (!condition) {
             throw new GameTestAssertException(message);
         }
+    }
+
+    /** A fraction assert with tolerance - SpotBugs FE, and the honest shape. */
+    private static void checkFraction(double expected, java.util.Optional<Double> actual,
+            String message) {
+        check(actual.isPresent() && Math.abs(actual.get() - expected) < 1e-9,
+                message + ", got " + actual);
     }
 }
