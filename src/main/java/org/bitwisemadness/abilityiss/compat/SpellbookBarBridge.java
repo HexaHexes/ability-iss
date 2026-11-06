@@ -19,6 +19,7 @@ import org.bitwisemadness.abilitycore.api.AbilityAvailability;
 import org.bitwisemadness.abilitycore.api.AbilityDefinition;
 import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
+import org.bitwisemadness.abilitycore.api.ActivationRequests;
 import org.bitwisemadness.abilitycore.api.ActivationResult;
 import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AvailabilityProviders;
@@ -169,22 +170,23 @@ public final class SpellbookBarBridge {
     /**
      * The native pipeline entry (#3): a spellbook-bar cell casting its own
      * spell - {@code slotContext} is the cell index, resolved against the
-     * player's own spell selection by ISS's quick-cast. Fail-closed: a
-     * request without a cell, a stale cell (beyond the book's capacity) or
-     * a slot ISS cannot resolve refuses instead of guessing.
+     * player's own spell selection by ISS's quick-cast. Fail-closed slot
+     * dispatch is core's shared gate (ability-core#87,
+     * {@link ActivationRequests#requireSlot}) run against the live book
+     * capacity (0 with no book, so every cell refuses): a request without
+     * a cell, a stale cell beyond that capacity, or an empty bar refuse
+     * with core's own refusal - never an active-slot fallback - and a slot
+     * ISS cannot resolve refuses instead of guessing.
      */
     private static ActivationResult cast(ActivationRequest request, ServerPlayer player) {
-        int slot = request.slotContext();
-        if (slot < 0) {
-            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
-        }
         var book = findBook(player);
         var container = book.isEmpty() ? null : ISpellContainer.get(book);
-        if (container == null || slot >= container.getMaxSpellCount()) {
-            // No book (stale seed) or a cell the book no longer has.
-            return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);
+        var gate = ActivationRequests.requireSlot(request,
+                container == null ? 0 : container.getMaxSpellCount());
+        if (!gate.isValid()) {
+            return gate.refusal();
         }
-        if (!Utils.serverSideInitiateQuickCast(player, slot)) {
+        if (!Utils.serverSideInitiateQuickCast(player, gate.slot())) {
             // ISS resolves the slot (null/empty/casting) and messages the
             // specific reason itself when it has one; we carry the outcome.
             return ActivationResult.refused(ActivationOutcome.REFUSED_UNAVAILABLE);

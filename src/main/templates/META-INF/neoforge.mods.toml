@@ -55,15 +55,16 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_core"
 type = "required"
-# alpha.39 is what this builds and gametests against (the floor names what
-# we gate on). The resource series reshaped AbilityDefinition's canonical
-# constructor three times in a day - alpha.34 (costs list), alpha.35
-# (consumption strategy), alpha.39 (amount resolver) - and each break
-# crashed the older binary at RegisterEvent with NoSuchMethodError in
-# production (Tensura RPG, 2026-11-06). A floor cannot defend against
-# pre-1.0 breaking changes inside its range - compile against what the
-# pack runs, gate, re-pin with the fleet.
-versionRange = "[1.0.0-alpha.39,)"
+# alpha.40 is both the floor and the gate: this mod CONSUMES the slot
+# gate (ActivationRequests.requireSlot, ability-core#87) that shipped
+# there, so older cores are not merely untested but missing an API the
+# cast handler calls. The floor's history in one line: the resource
+# series reshaped AbilityDefinition's canonical constructor at alpha.34
+# (costs), 35 (strategy) and 39 (amount resolver) - each break crashed
+# older binaries at RegisterEvent (Tensura RPG, 2026-11-06) - so a floor
+# cannot defend against pre-1.0 breaks inside its range: compile against
+# what the pack runs, gate, re-pin with the fleet.
+versionRange = "[1.0.0-alpha.40,)"
 ordering = "AFTER"
 side = "BOTH"
 
