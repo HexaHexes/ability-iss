@@ -127,9 +127,10 @@ public final class SpellbookBarBridge {
      * resolver is {@code "static"} (the built-in identity): the cast
      * charges no core resources - mana is ISS's own, charged inside its
      * own pipeline (this handler is {@code ChargingModel.NATIVE}; the
-     * hotbar#119 boundary says costs live with the domain). The
-     * overlay's mana badge comes from the per-cell availability, not
-     * from this declaration.</p>
+     * hotbar#119 boundary says costs live with the domain). The overlay
+     * deliberately carries no cost badge for spell cells (see
+     * {@code SpellCellOverlays}): the renderer's badge is an unannotated
+     * black strip over the icon.</p>
      *
      * <p>Shape note: core's resource series reshaped this constructor
      * three times in a day - alpha.34 (costs list), alpha.35
