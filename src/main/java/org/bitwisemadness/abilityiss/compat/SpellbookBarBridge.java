@@ -5,6 +5,7 @@ import io.redspace.ironsspellbooks.api.spells.SpellData;
 import io.redspace.ironsspellbooks.api.util.Utils;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,6 +18,7 @@ import net.neoforged.neoforge.registries.RegisterEvent;
 import org.bitwisemadness.abilitycore.AbilityCore;
 import org.bitwisemadness.abilitycore.api.AbilityAvailability;
 import org.bitwisemadness.abilitycore.api.AbilityDefinition;
+import org.bitwisemadness.abilitycore.api.AbilityUnlocks;
 import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationRequests;
@@ -166,6 +168,23 @@ public final class SpellbookBarBridge {
         handlersRegistered = true;
         AbilityCore.HANDLERS.register(CAST_ID, SpellbookBarBridge::cast, ChargingModel.NATIVE);
         AvailabilityProviders.declare(CAST_ID, SpellbookBarBridge::availability);
+        // The unlock contract's read seam (core#117): having the cast
+        // ability IS wearing a book with a castable spell - hotbar#135's
+        // menu and assignment validation ask core instead of ISS.
+        AbilityUnlocks.declare(CAST_ID, (player, id) -> player == null
+                ? Optional.empty()
+                : Optional.of(hasCastableBook(player)));
+    }
+
+    /**
+     * Whether the player can cast at all: an equipped spellbook with at
+     * least one castable spell. Shared by the overlay's verdict and the
+     * unlock provider - one possession read for both (core#117).
+     */
+    public static boolean hasCastableBook(Player player) {
+        var book = findBook(player);
+        var container = book.isEmpty() ? null : ISpellContainer.get(book);
+        return container != null && container.getActiveSpellCount() > 0;
     }
 
     /**
@@ -203,9 +222,7 @@ public final class SpellbookBarBridge {
      * ability-hotbar#115's per-cell availability.
      */
     private static AbilityAvailability availability(Player player, ResourceLocation id) {
-        var book = findBook(player);
-        var container = book.isEmpty() ? null : ISpellContainer.get(book);
-        boolean castable = container != null && container.getActiveSpellCount() > 0;
+        boolean castable = player != null && hasCastableBook(player);
         return new AbilityAvailability(
                 Metric.unknown(),
                 Metric.unknown(),
