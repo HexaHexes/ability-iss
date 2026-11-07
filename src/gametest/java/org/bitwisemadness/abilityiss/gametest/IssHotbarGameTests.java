@@ -27,6 +27,7 @@ import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.CooldownOwners;
+import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
 import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
@@ -91,6 +92,9 @@ public final class IssHotbarGameTests {
         check(CooldownOwners.ownerOf(SpellbookBarBridge.CAST_ID)
                         == CooldownOwners.Owner.HANDLER,
                 "cast must defer its cooldown to the per-spell handler (alpha.45)");
+
+        check(!VisibilityHandlers.visible(null, SpellbookBarBridge.CAST_ID),
+                "cast is exclusive to its provider bar - never menu-visible (core#124)");
 
         helper.succeed();
     }

@@ -32,6 +32,7 @@ import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.ChargingModel;
 import org.bitwisemadness.abilitycore.api.CooldownOwners;
 import org.bitwisemadness.abilitycore.api.Metric;
+import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
@@ -182,6 +183,10 @@ public final class SpellbookBarBridge {
         AbilityUnlocks.declare(CAST_ID, (player, id) -> player == null
                 ? Optional.empty()
                 : Optional.of(hasCastableBook(player)));
+        // Menu visibility (core#124): cast exists only on the spellbook
+        // bar it is scoped to - a provider-bar-exclusive ability is never
+        // listed by the menu (hotbar#153), scope or no scope.
+        VisibilityHandlers.declare(CAST_ID, VisibilityHandlers.NEVER);
     }
 
     /**
