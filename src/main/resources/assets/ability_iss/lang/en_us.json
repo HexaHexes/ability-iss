@@ -1,5 +1,8 @@
 {
+  "ability_hotbar.resource.irons_spellbooks.mana": "Mana",
   "ability_iss.bar.spellbook": "Spellbook",
   "ability_iss.ability.cast": "Cast Spell",
+  "ability_iss.configuration.hudReplaceTensuraCharging": "ISS HUD over Tensura",
+  "ability_iss.configuration.hudReplaceTensuraCharging.tooltip": "Replace Tensura's ability charging HUD with ISS's overlays when ability-tensura is loaded. Default: true.",
   "ability_iss.tab.spells": "Spells"
 }

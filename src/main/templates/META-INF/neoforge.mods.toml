@@ -71,13 +71,22 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-# alpha.49: the oldest hotbar whose renderer works against this mod's
-# core floor - 46-48 invoke AbilityDefinition.cost(), removed in core
-# alpha.34 (hotbar#122, fixed in 49), so they crash the frame against
-# core >= 34. alpha.46 = Provider API v2 (hotbar#118: state-defaulted
-# selection frame, iconId, availabilityFor - the hooks this mod's cells
-# consume); 49 is also what we compile and gametest against.
-versionRange = "[1.0.0-alpha.49,)"
+# alpha.92: the oldest hotbar carrying the spell-tab API this mod's
+# Spells tab consumes (TabContent handlers, informational tabs,
+# registerCategoryTabs, subCategoryIcon) - older ones never register
+# the tab's shape or its chip icons.
+versionRange = "[1.0.0-alpha.92,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "tensura"
+type = "optional"
+# The HUD swap's subject (owner: replace Tensura's charging row with
+# ISS's overlays when both ability mods load) - gated behind isLoaded
+# in IssClientEvents, so absence no-ops. 2.0.1 = the first line this
+# swap reads.
+versionRange = "[2.0.1,)"
 ordering = "AFTER"
 side = "BOTH"
 

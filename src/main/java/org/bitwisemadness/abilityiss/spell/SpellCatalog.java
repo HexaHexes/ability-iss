@@ -145,8 +145,11 @@ public final class SpellCatalog {
     @Nullable
     private static String schoolTag(AbstractSpell spell) {
         try {
-            var school = spell.getSchoolType();
-            return school == null ? null : "type:" + school.getId().getPath();
+            // the spell's DECLARED default school (owner: the config-
+            // manager read defaulted to one school for every spell - all
+            // Evocation - so the strip never reads it)
+            ResourceLocation school = spell.getDefaultConfig().schoolResource;
+            return school == null ? null : "type:" + school.getPath();
         } catch (RuntimeException upstream) {
             return null;
         }

@@ -25,8 +25,14 @@ scrolls both), a `type:<school>` strip ordered from ISS's school registry,
 **Dependencies**
 - Required: Minecraft, NeoForge, Ability Hotbar, Ability Core, Iron's Spells
   'n Spellbooks, Curios - all six are hard in the toml.
+- Optional: **Tensura: Reincarnated** (first soft dependency) - the HUD
+  swap's subject: with both ability mods loaded, ISS's overlays replace
+  Tensura's ability charging row (`IssClientEvents`, dist-scoped,
+  `isLoaded`-gated, toggle in `ability_iss-client.toml` /
+  `hud.replaceTensuraCharging`); absence no-ops. Hotbar's floor is
+  **alpha.90** (the spell-tab API this mod consumes).
 - Every optional-feeling seam still follows the `isLoaded()` gate rule from
-  AGENTS.md for future soft dependencies; today nothing is optional.
+  AGENTS.md for future soft dependencies.
 
 **Test:** `./gradlew runGameTestServer` - `IssHotbarGameTests` (8 tests).
 `expectedTests = 8` in `build.gradle` must match the `@GameTest` count.
