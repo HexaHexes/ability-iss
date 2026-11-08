@@ -13,7 +13,14 @@ worn in Curios, renders its spells as the cells of a non-assignable provider
 bar (cell count from the book's own capacity, clamped to ContentPlan's
 `[1, 18]`), and casts through Ability Core with the cell index as the
 activation's slot context. Sibling of pseudocore-curios' curios bar - same
-model, different content source.
+model, different content source. Also registers the menu's **Spells tab**
+(owner's tab brief): one ability per ISS spell (the ability-tensura
+registration-timing pattern - raw write at ISS's own spell-registry event),
+listed once ISS remembers the spell for the player (`AbstractSpell.isLearned`,
+its own side-aware read), greyed unless the spell sits in the inventories
+right now (main/armor/offhand, curios, any carried spell container - books and
+scrolls both), a `type:<school>` strip ordered from ISS's school registry,
+**informational only** (rows never slot) through hotbar's tab API.
 
 **Dependencies**
 - Required: Minecraft, NeoForge, Ability Hotbar, Ability Core, Iron's Spells
@@ -21,8 +28,8 @@ model, different content source.
 - Every optional-feeling seam still follows the `isLoaded()` gate rule from
   AGENTS.md for future soft dependencies; today nothing is optional.
 
-**Test:** `./gradlew runGameTestServer` - `IssHotbarGameTests` (1 test).
-`expectedTests = 1` in `build.gradle` must match the `@GameTest` count.
+**Test:** `./gradlew runGameTestServer` - `IssHotbarGameTests` (8 tests).
+`expectedTests = 8` in `build.gradle` must match the `@GameTest` count.
 
 **Gotchas**
 - `slotCount` must satisfy ContentPlan's `[1, 18]` on every call - book

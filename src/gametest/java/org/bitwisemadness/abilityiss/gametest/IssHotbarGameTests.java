@@ -25,17 +25,22 @@ import org.bitwisemadness.abilitycore.api.AbilityUnlocks;
 import org.bitwisemadness.abilitycore.api.ActivationOutcome;
 import org.bitwisemadness.abilitycore.api.ActivationRequest;
 import org.bitwisemadness.abilitycore.api.ActivationSource;
+import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.CooldownOwners;
 import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
+import org.bitwisemadness.abilitycore.discovery.AbilityDiscovery;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
 import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
+import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
 import org.bitwisemadness.abilityhotbar.state.BarStateAttachments;
 import org.bitwisemadness.abilityhotbar.state.SeededAssignments;
 import org.bitwisemadness.abilityiss.IssHotbar;
 import org.bitwisemadness.abilityiss.SpellCellOverlays;
 import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
+import org.bitwisemadness.abilityiss.spell.SpellCatalog;
+import org.bitwisemadness.abilityiss.spell.SpellMenuTab;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.event.CurioChangeEvent;
 
@@ -387,6 +392,43 @@ public final class IssHotbarGameTests {
                     "placeNewPlayer failed before the player was placed: " + joinNoise);
         }
         return player;
+    }
+
+    /**
+     * The spell tab's catalog (owner's tab brief): one definition per ISS
+     * spell, built against the POPULATED registry (the ability-tensura
+     * registration-timing pattern), every activation shape a real
+     * vocabulary value, every declared cost an honest mana quote, the
+     * school strip ordered from ISS's schools, and the unknown context
+     * never hiding a spell (visibility's never-guess).
+     */
+    @GameTest(template = "empty")
+    public static void spellCatalogRegistersEveryIssSpell(GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        long live = SpellRegistry.REGISTRY.stream().count();
+        check(live > 0, "ISS must stage its spell registry");
+        check(registered.size() == (int) live,
+                "every ISS spell must register exactly once (registered="
+                        + registered.size() + " of " + live + ")");
+        for (ResourceLocation id : registered) {
+            var definition = AbilityDiscovery.get(id).orElse(null);
+            check(definition != null, "definition must resolve: " + id);
+            check(definition.activationType() != ActivationType.UNKNOWN,
+                    "a spell's cast shape must map to the vocabulary: " + id);
+            for (org.bitwisemadness.abilitycore.api.ResourceCost cost : definition.costs()) {
+                check(Double.isFinite(cost.amount()) && cost.amount() >= 0,
+                        "a declared mana quote must be non-negative: " + id);
+                check("irons_spellbooks:mana".equals(cost.resourceId()),
+                        "costs must name ISS's own currency: " + id);
+            }
+            check(VisibilityHandlers.visible(null, id),
+                    "the unknown context must never hide a spell: " + id);
+        }
+        var strip = MenuTabs.subCategoryOrder(SpellMenuTab.TAB_ID);
+        check(!strip.isEmpty(), "the school strip must carry ISS's schools");
+        check(strip.stream().anyMatch(tag -> tag.startsWith("type:")),
+                "the strip must be type-tag shaped: " + strip);
+        helper.succeed();
     }
 
     private static void check(boolean condition, String message) {
