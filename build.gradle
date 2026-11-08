@@ -134,7 +134,7 @@ dependencies {
     def playerAnimatorFileId = '7389814'  // player-animation-lib-forge-2.0.4+1.21.1
     def curiosFileId = '6529130'          // curios-neoforge-9.5.1+1.21.1
     def abilityCoreVersion = '1.0.0'
-    def abilityHotbarVersion = '1.0.0-alpha.49'
+    def abilityHotbarVersion = '1.0.0-alpha.90'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -176,7 +176,7 @@ tasks.register('prepareGametestMods', Sync) {
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     dependsOn 'prepareGametestMods'
 
-    def expectedTests = 7
+    def expectedTests = 8
     doLast {
         def log = file('run/logs/latest.log')
         if (!log.exists()) {
