@@ -8,6 +8,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import org.bitwisemadness.abilitycore.config.ConfigDiagnostics;
 import org.bitwisemadness.abilityhotbar.registry.MenuTabs;
+import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
 import org.bitwisemadness.abilityiss.config.IssClientConfig;
 import org.jetbrains.annotations.Nullable;
 
@@ -60,6 +61,9 @@ public final class SpellMenuTab {
                 (id, definition) -> SpellCatalog.CATEGORY.equals(definition.category()),
                 player -> SpellCatalog.registered(),
                 true);
+        // owner: this tab's strip shows the SPELLBOOK's cells (the
+        // provider bar), not the assignable bar's
+        MenuTabs.registerBarForTab(TAB_ID, SpellbookBarBridge.CURIO_BAR);
         MenuTabs.subCategoryOrder(TAB_ID, schoolOrder());
         registerChipIcons(chipTemplate());
     }

@@ -16,6 +16,7 @@ import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
 import org.bitwisemadness.abilitycore.api.ConsumptionStrategies;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
+import org.bitwisemadness.abilityhotbar.client.LiveCosts;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -73,6 +74,10 @@ public final class SpellCatalog {
                 continue; // unreachable for a live entry - never invent an id
             }
             Registry.register(registry, spellId, definitionFor(spellId, spell));
+            // the pane's live-cost answer (hotbar#193): a repricing in
+            // force since registration - tensura_iron_spells' mixin,
+            // whose config loads after RegisterEvent - is what shows
+            LiveCosts.declare(spellId, () -> liveCostsFor(spell));
             REGISTERED.add(spellId);
         }
     }
@@ -131,13 +136,26 @@ public final class SpellCatalog {
      * cost: enrichment never fails a registration.
      */
     static List<ResourceCost> costsFor(AbstractSpell spell) {
+        List<ResourceCost> live = liveCostsFor(spell);
+        return live == null ? List.of() : live;
+    }
+
+    /**
+     * The same quote re-read <b>now</b>, for the pane's live-cost answer:
+     * null when upstream is unreadable, which is LiveCosts' signal to keep
+     * the baked list instead of blanking the row. A spell that genuinely
+     * costs nothing answers an empty list, not null - the distinction the
+     * fallback contract turns on.
+     */
+    @Nullable
+    static List<ResourceCost> liveCostsFor(AbstractSpell spell) {
         try {
             int mana = spell.getManaCost(Math.max(1, spell.getMinLevel()));
             return mana > 0
                     ? List.of(new ResourceCost("irons_spellbooks:mana", mana))
                     : List.of();
         } catch (RuntimeException upstream) {
-            return List.of();
+            return null;
         }
     }
 
