@@ -15,6 +15,8 @@ import org.bitwisemadness.abilitycore.api.AbilityAvailability;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProvider;
 import org.bitwisemadness.abilityiss.SpellCellOverlays;
 import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
+import org.bitwisemadness.abilityiss.config.IssClientConfig;
+import org.bitwisemadness.abilityiss.config.IssServerConfig;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -64,7 +66,8 @@ public final class SpellbookBarContentProvider implements HotbarContentProvider 
             // behind hasContent() = false, so the bar stays hidden.
             return 1;
         }
-        return Math.max(1, Math.min(container.getMaxSpellCount(), SpellbookBarBridge.MAX_CELLS));
+        return Math.max(1, Math.min(container.getMaxSpellCount(),
+                IssServerConfig.MAX_CELLS.get()));
     }
 
     @Override
@@ -102,8 +105,11 @@ public final class SpellbookBarContentProvider implements HotbarContentProvider 
         CooldownInstance entry = cooldowns == null
                 ? null
                 : cooldowns.getSpellCooldowns().get(spell.getSpellId());
-        int remaining = entry == null ? 0 : entry.getCooldownRemaining();
-        int total = entry == null ? 0 : entry.getSpellCooldown();
+        // bar.showCooldownSweep off = report no cooldown, so the mapping
+        // answers unknown and the renderer draws no sweep (never a fake one)
+        boolean sweep = IssClientConfig.SHOW_COOLDOWN_SWEEP.get();
+        int remaining = entry == null || !sweep ? 0 : entry.getCooldownRemaining();
+        int total = entry == null || !sweep ? 0 : entry.getSpellCooldown();
         int manaCost = spell.getManaCost(data.getLevel());
         float mana = ClientMagicData.getPlayerMana();
         return SpellCellOverlays.forCell(remaining, total, manaCost, data.isLocked(), mana);
@@ -111,6 +117,9 @@ public final class SpellbookBarContentProvider implements HotbarContentProvider 
 
     @Override
     public boolean hasContent() {
+        if (!IssClientConfig.HIDE_WHEN_EMPTY.get()) {
+            return true; // pack keeps the bar visible even when empty
+        }
         var container = currentContainer();
         return container != null && container.getActiveSpellCount() > 0;
     }
