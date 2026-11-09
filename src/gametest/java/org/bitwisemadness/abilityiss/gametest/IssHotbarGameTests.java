@@ -30,6 +30,7 @@ import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.CooldownOwners;
 import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
 import org.bitwisemadness.abilitycore.discovery.AbilityDiscovery;
+import org.bitwisemadness.abilityhotbar.client.LiveCosts;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
 import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
@@ -411,6 +412,20 @@ public final class IssHotbarGameTests {
                 "every ISS spell must register exactly once (registered="
                         + registered.size() + " of " + live + ")");
         java.util.Set<String> schools = new java.util.HashSet<>();
+        // the pane's live-cost answer (hotbar#193): a decoy baked list
+        // makes an undeclared spell quote itself, so the loop below can
+        // tell a real declaration from its absence
+        var decoy = new org.bitwisemadness.abilitycore.api.AbilityDefinition(
+                "test.baked",
+                ResourceLocation.fromNamespaceAndPath("ability_iss", "baked"),
+                SpellCatalog.CATEGORY,
+                ActivationType.INSTANT,
+                java.util.List.of(new org.bitwisemadness.abilitycore.api.ResourceCost(
+                        "test:baked", 4242)),
+                org.bitwisemadness.abilitycore.api.ConsumptionStrategies.ALL,
+                org.bitwisemadness.abilitycore.api.AmountResolvers.STATIC,
+                java.util.Set.of(),
+                java.util.Map.of());
         for (ResourceLocation id : registered) {
             var definition = AbilityDiscovery.get(id).orElse(null);
             check(definition != null, "definition must resolve: " + id);
@@ -426,10 +441,17 @@ public final class IssHotbarGameTests {
             }
             check(VisibilityHandlers.visible(null, id),
                     "the unknown context must never hide a spell: " + id);
+            check(LiveCosts.forDisplay(id, decoy).stream()
+                            .noneMatch(cost -> "test:baked".equals(cost.resourceId())),
+                    "the pane must quote the spell's live cost, not a baked list: " + id);
         }
         check(schools.size() > 1,
                 "schools must be per-spell, not one default (owner saw all "
                         + "Evocation): " + schools);
+        check(MenuTabs.barForTab(SpellMenuTab.TAB_ID)
+                        .filter(SpellbookBarBridge.CURIO_BAR::equals)
+                        .isPresent(),
+                "the Spells tab's strip must show the spellbook's provider bar");
         var strip = MenuTabs.subCategoryOrder(SpellMenuTab.TAB_ID);
         check(!strip.isEmpty(), "the school strip must carry ISS's schools");
         check(strip.stream().anyMatch(tag -> tag.startsWith("type:")),
