@@ -19,6 +19,24 @@ public final class IssClientConfig {
                     + "when ability-tensura is loaded")
                     .define("hud.replaceTensuraCharging", true);
 
+    /**
+     * The OverlayHandler element id of Tensura's ABILITIES layer - the
+     * belt-and-braces switch sits behind it (ARR's own tableswitch: 0
+     * status, 1 status bars, 2 abilities, 3 analysis), configurable so a
+     * Tensura update that renumbers the layers cannot silently disable
+     * the wrong row.
+     */
+    public static final ModConfigSpec.IntValue TENSURA_ABILITIES_LAYER_ID =
+            BUILDER.comment("OverlayHandler element id of Tensura's abilities layer "
+                    + "(0 status, 1 status bars, 2 abilities, 3 analysis)")
+                    .defineInRange("hud.tensuraAbilitiesLayerId", 2, 0, 15);
+
+    /** Whether the swap also switches the abilities layer element off. */
+    public static final ModConfigSpec.BooleanValue DISABLE_TENSURA_ABILITIES_LAYER =
+            BUILDER.comment("Also switch Tensura's abilities layer element off - the "
+                    + "belt-and-braces beside its own config flag")
+                    .define("hud.disableTensuraAbilitiesLayer", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private IssClientConfig() {

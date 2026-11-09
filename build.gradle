@@ -26,6 +26,12 @@ sourceSets {
         compileClasspath += sourceSets.main.output + configurations.compileClasspath
         runtimeClasspath += output + sourceSets.main.output + configurations.runtimeClasspath
     }
+    // The JUnit suite references the config specs (ModConfigSpec, nightconfig,
+    // gson) - the test source set joins main's classpath, the hotbar pattern.
+    test {
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += output + sourceSets.main.output + configurations.runtimeClasspath
+    }
 }
 
 neoForge {
