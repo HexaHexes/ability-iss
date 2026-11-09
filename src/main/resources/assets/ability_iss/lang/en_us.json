@@ -2,7 +2,13 @@
   "ability_hotbar.resource.irons_spellbooks.mana": "Mana",
   "ability_iss.bar.spellbook": "Spellbook",
   "ability_iss.ability.cast": "Cast Spell",
-  "ability_iss.configuration.hudReplaceTensuraCharging": "ISS HUD over Tensura",
-  "ability_iss.configuration.hudReplaceTensuraCharging.tooltip": "Replace Tensura's ability charging HUD with ISS's overlays when ability-tensura is loaded. Default: true.",
+  "ability_iss.configuration.hud": "HUD",
+  "ability_iss.configuration.hud.tooltip": "The ISS-over-Tensura ability HUD swap.",
+  "ability_iss.configuration.replaceTensuraCharging": "ISS HUD over Tensura",
+  "ability_iss.configuration.replaceTensuraCharging.tooltip": "Replace Tensura's ability charging HUD with ISS's overlays when ability-tensura is loaded; applies live in both directions. Default: true.",
+  "ability_iss.configuration.tensuraAbilitiesLayerId": "Tensura abilities layer id",
+  "ability_iss.configuration.tensuraAbilitiesLayerId.tooltip": "OverlayHandler element id of Tensura's abilities layer (0 status, 1 status bars, 2 abilities, 3 analysis). Default: 2.",
+  "ability_iss.configuration.disableTensuraAbilitiesLayer": "Also switch the layer off",
+  "ability_iss.configuration.disableTensuraAbilitiesLayer.tooltip": "Switch Tensura's abilities layer element off as well as its own config flag (belt-and-braces). Default: true.",
   "ability_iss.tab.spells": "Spells"
 }
