@@ -90,6 +90,17 @@ versionRange = "[2.0.1,)"
 ordering = "AFTER"
 side = "BOTH"
 
+# ManasCore - optional: the Tensura HUD swap reads Tensura's HudConfig
+# through ConfigRegistry, but only inside the isLoaded("tensura") gate in
+# IssClientEvents, so absence (or ManasCore's absence behind Tensura)
+# no-ops the swap.
+[[dependencies.${mod_id}]]
+modId = "manascore"
+type = "optional"
+versionRange = "[4.0.0.2,)"
+ordering = "AFTER"
+side = "BOTH"
+
 # Add your mod's dependencies below. Use type = "optional" for anything the mod
 # works without, and gate the code that touches it (mixins, registrations) so it
 # no-ops when the dependency is absent.
