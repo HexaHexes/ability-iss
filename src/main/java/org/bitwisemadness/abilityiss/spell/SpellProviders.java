@@ -78,14 +78,20 @@ public final class SpellProviders {
         return held == null ? Optional.empty() : Optional.of(held);
     }
 
-    /** Whether ISS remembers the spell for this player (its own side-aware read). */
+    /**
+     * Whether ISS's record shows the spell as encountered (owner: only
+     * those list). The learning record counts; non-learning spells are
+     * auto-learned by ISS ({@code isSpellLearned} short-circuits true),
+     * so for those only an actual hold counts - ISS keeps no other
+     * record of them, and inventing one would guess.
+     */
     private static boolean found(Player player, ResourceLocation id) {
         AbstractSpell spell = SpellRegistry.REGISTRY.get(id);
         if (spell == null) {
             return false;
         }
         try {
-            return spell.isLearned(player);
+            return spell.requiresLearning() && spell.isLearned(player);
         } catch (RuntimeException unreadable) {
             return false;
         }

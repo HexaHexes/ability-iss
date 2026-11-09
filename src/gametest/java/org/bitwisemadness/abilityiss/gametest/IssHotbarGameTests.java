@@ -410,11 +410,14 @@ public final class IssHotbarGameTests {
         check(registered.size() == (int) live,
                 "every ISS spell must register exactly once (registered="
                         + registered.size() + " of " + live + ")");
+        java.util.Set<String> schools = new java.util.HashSet<>();
         for (ResourceLocation id : registered) {
             var definition = AbilityDiscovery.get(id).orElse(null);
             check(definition != null, "definition must resolve: " + id);
             check(definition.activationType() != ActivationType.UNKNOWN,
                     "a spell's cast shape must map to the vocabulary: " + id);
+            definition.tags().stream().filter(tag -> tag.startsWith("type:"))
+                    .forEach(schools::add);
             for (org.bitwisemadness.abilitycore.api.ResourceCost cost : definition.costs()) {
                 check(Double.isFinite(cost.amount()) && cost.amount() >= 0,
                         "a declared mana quote must be non-negative: " + id);
@@ -424,6 +427,9 @@ public final class IssHotbarGameTests {
             check(VisibilityHandlers.visible(null, id),
                     "the unknown context must never hide a spell: " + id);
         }
+        check(schools.size() > 1,
+                "schools must be per-spell, not one default (owner saw all "
+                        + "Evocation): " + schools);
         var strip = MenuTabs.subCategoryOrder(SpellMenuTab.TAB_ID);
         check(!strip.isEmpty(), "the school strip must carry ISS's schools");
         check(strip.stream().anyMatch(tag -> tag.startsWith("type:")),

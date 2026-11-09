@@ -122,6 +122,16 @@ repositories {
 // prepareGametestMods, exactly like the rest of the org's mod repos.
 configurations {
     gametestMods
+    manascoreApi
+}
+
+def extractManascoreApi = tasks.register('extractManascoreApi', Copy) {
+    from({ zipTree(configurations.manascoreApi.singleFile) })
+    // Every nested module: the config registry's signatures reach across
+    // them (manascore nests each module inside the outer jar - the
+    // ability-tensura extraction pattern).
+    include 'META-INF/jars/*.jar'
+    into layout.buildDirectory.dir('manascore-api')
 }
 
 dependencies {
@@ -134,7 +144,7 @@ dependencies {
     def playerAnimatorFileId = '7389814'  // player-animation-lib-forge-2.0.4+1.21.1
     def curiosFileId = '6529130'          // curios-neoforge-9.5.1+1.21.1
     def abilityCoreVersion = '1.0.0'
-    def abilityHotbarVersion = '1.0.0-alpha.90'
+    def abilityHotbarVersion = '1.0.0-alpha.92'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -145,6 +155,18 @@ dependencies {
     compileOnly "curse.maven:curios-309927:${curiosFileId}"
     compileOnly "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
     compileOnly "org.bitwisemadness.abilityhotbar:ability_hotbar:${abilityHotbarVersion}"
+
+    // The HUD swap compiles against Tensura's client config/overlay and
+    // manascore's config registry (iss's FIRST soft dependency): both
+    // compile-only, never bundled - IssClientEvents gates every touch on
+    // ModList("tensura"), and its dist-scoped subscriber never loads on a
+    // server (the guarded-callsite pattern; CurseForge ids from the pack).
+    compileOnly 'curse.maven:tensura-reincarnated-643695:8793360'
+    add('manascoreApi', 'curse.maven:manascore-619025:8022425')
+    def manascoreApiFiles = fileTree(layout.buildDirectory.dir('manascore-api')) {
+        include 'META-INF/jars/*.jar'
+    }
+    compileOnly manascoreApiFiles.builtBy(extractManascoreApi)
 
     // GameTest runtime: ISS boots only with its full required closure
     // (its neoforge.mods.toml marks geckolib, playeranimator, curios and
