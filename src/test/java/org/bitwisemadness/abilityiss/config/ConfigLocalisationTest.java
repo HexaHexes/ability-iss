@@ -70,7 +70,11 @@ class ConfigLocalisationTest {
     @Test
     void everyScreenKeyHasANonEmptyLangEntry() {
         JsonObject lang = loadLang();
-        for (String key : screenKeys(IssClientConfig.SPEC)) {
+        List<String> keys = new ArrayList<>();
+        keys.addAll(screenKeys(IssClientConfig.SPEC));
+        keys.addAll(screenKeys(IssServerConfig.SPEC));
+
+        for (String key : keys) {
             assertTrue(lang.has(key), "missing from en_us.json: " + key);
             assertTrue(lang.get(key).isJsonPrimitive() && !lang.get(key).getAsString().isBlank(),
                     "blank translation for: " + key);
@@ -80,14 +84,16 @@ class ConfigLocalisationTest {
     @Test
     void noTwoScreenEntriesShareOneTranslationKey() {
         // the screen labels by leaf name only, so a section and a value
-        // sharing a name (or two leaves in different sections) would show
-        // one wrong label for both
-        List<String> keys = screenKeys(IssClientConfig.SPEC);
+        // sharing a name (or the same section in both specs) would show
+        // one wrong label for both - hence the SERVER spec's section names
+        List<String> keys = new ArrayList<>();
+        keys.addAll(screenKeys(IssClientConfig.SPEC));
+        keys.addAll(screenKeys(IssServerConfig.SPEC));
         keys.removeIf(k -> k.endsWith(".tooltip"));
 
         Set<String> unique = new HashSet<>(keys);
         assertEquals(keys.size(), unique.size(),
-                "duplicate label keys derived from the spec: " + keys);
+                "duplicate label keys derived from the specs: " + keys);
     }
 
     @Test

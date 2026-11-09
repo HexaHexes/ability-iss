@@ -5,3 +5,6 @@ run/
 *.iml
 .idea/
 repo/
+
+# headless runs write their logs here
+logs/

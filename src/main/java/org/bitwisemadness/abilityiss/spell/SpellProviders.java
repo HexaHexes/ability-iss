@@ -13,6 +13,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.bitwisemadness.abilitycore.api.AbilityUnlocks;
 import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
+import org.bitwisemadness.abilityiss.config.IssServerConfig;
 import org.jetbrains.annotations.Nullable;
 import top.theillusivec4.curios.api.CuriosApi;
 
@@ -55,6 +56,9 @@ public final class SpellProviders {
      * degrades to the held answer rather than hiding a real spell.
      */
     public static boolean visible(@Nullable Player player, ResourceLocation id) {
+        if (IssServerConfig.SHOW_ALL_SPELLS.get()) {
+            return true; // pack lists every registered spell
+        }
         if (player == null) {
             return true;
         }
@@ -68,9 +72,15 @@ public final class SpellProviders {
     /**
      * The grey answer (core#117): held right now means learned/unlocked;
      * a failed read abstains (empty = unknown, never a guessed grey).
+     * With {@code tab.greyUnheldRows} off the provider abstains entirely -
+     * the never-guess rule then renders no grey, without claiming the
+     * spell is unlocked.
      */
     public static Optional<Boolean> unlockAnswer(
             @Nullable Player player, ResourceLocation id) {
+        if (!IssServerConfig.GREY_UNHELD_ROWS.get()) {
+            return Optional.empty();
+        }
         if (player == null) {
             return Optional.empty();
         }
@@ -122,18 +132,27 @@ public final class SpellProviders {
     private static Set<ResourceLocation> scanHeld(Player player) {
         Set<ResourceLocation> out = new HashSet<>();
         var inventory = player.getInventory();
-        for (int i = 0; i < inventory.getContainerSize(); i++) {
-            collect(inventory.getItem(i), out);
+        for (ItemStack stack : inventory.items) {
+            collect(stack, out);
+        }
+        collect(inventory.offhand.get(0), out);
+        // owner's brief: armor counts only when the pack says so
+        if (IssServerConfig.HELD_INCLUDE_ARMOR.get()) {
+            for (ItemStack stack : inventory.armor) {
+                collect(stack, out);
+            }
         }
         // owner's brief: curios inventories count as held too
-        CuriosApi.getCuriosInventory(player).ifPresent(handler -> {
-            for (var stacks : handler.getCurios().values()) {
-                var slots = stacks.getStacks();
-                for (int i = 0; i < slots.getSlots(); i++) {
-                    collect(slots.getStackInSlot(i), out);
+        if (IssServerConfig.HELD_INCLUDE_CURIOS.get()) {
+            CuriosApi.getCuriosInventory(player).ifPresent(handler -> {
+                for (var stacks : handler.getCurios().values()) {
+                    var slots = stacks.getStacks();
+                    for (int i = 0; i < slots.getSlots(); i++) {
+                        collect(slots.getStackInSlot(i), out);
+                    }
                 }
-            }
-        });
+            });
+        }
         return out;
     }
 

@@ -39,6 +39,7 @@ import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
 import org.bitwisemadness.abilityhotbar.registry.HotbarRegistry;
 import org.bitwisemadness.abilityhotbar.state.SeededAssignments;
 import org.bitwisemadness.abilityiss.client.SpellbookBarContentProvider;
+import org.bitwisemadness.abilityiss.config.IssServerConfig;
 
 /**
  * The Ability Iss hotbar seam: everything that touches Ability Hotbar and
@@ -78,7 +79,11 @@ public final class SpellbookBarBridge {
     public static final ResourceLocation CAST_ID = ResourceLocation.fromNamespaceAndPath(
             "ability_iss", "cast");
 
-    /** ContentPlan's ceiling: no book cell count may exceed it. */
+    /**
+     * ContentPlan's shipped ceiling: no book cell count may exceed it.
+     * The live ceiling is {@code spellbook.maxCells} (server, synced) -
+     * this constant is its default and the addon-facing value.
+     */
     public static final int MAX_CELLS = 18;
 
     private static boolean registered;
@@ -297,7 +302,7 @@ public final class SpellbookBarBridge {
     public static void seed(ServerPlayer player) {
         var book = findBook(player);
         var container = book.isEmpty() ? null : ISpellContainer.get(book);
-        SeededAssignments.seedAll(player, CURIO_BAR, MAX_CELLS,
+        SeededAssignments.seedAll(player, CURIO_BAR, IssServerConfig.MAX_CELLS.get(),
                 cell -> isSpellCell(container, cell) ? CAST_ID.toString() : null);
     }
 

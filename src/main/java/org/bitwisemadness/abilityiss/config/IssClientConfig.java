@@ -37,6 +37,53 @@ public final class IssClientConfig {
                     + "belt-and-braces beside its own config flag")
                     .define("hud.disableTensuraAbilitiesLayer", true);
 
+    // --- the Spells tab's display (menu.*; registration reads go through
+    // core's readOrDefault because common setup also runs server-side) ---
+
+    /** The tab's icon (empty = the shipped Divine Pearl). */
+    public static final ModConfigSpec.ConfigValue<String> TAB_ICON =
+            BUILDER.comment("The Spells tab's icon as an item id (empty = the Divine Pearl)")
+                    .define("menu.icon", "irons_spellbooks:divine_pearl");
+
+    /** The tab's menu sprite (empty = none: a text-only label). */
+    public static final ModConfigSpec.ConfigValue<String> TAB_SPRITE =
+            BUILDER.comment("The Spells tab's menu sprite as a texture path (empty = none)")
+                    .define("menu.sprite", "");
+
+    /** The school chip texture template (%s = the school path). */
+    public static final ModConfigSpec.ConfigValue<String> SCHOOL_CHIP_TEXTURE =
+            BUILDER.comment("School chip texture template, %s replaced by the school path "
+                            + "(empty = no chip icons)")
+                    .define("menu.schoolChipTexture",
+                            "irons_spellbooks:textures/item/scroll_%s");
+
+    /** Whether rows quote the spell's mana cost - DEFERRED: the cost is
+     * baked into the definition at RegisterEvent, which runs before
+     * config loads (the audit's documented decline). */
+
+    /** The school strip's explicit order (empty = the registry's order). */
+    public static final ModConfigSpec.ConfigValue<java.util.List<? extends String>> SCHOOL_ORDER =
+            BUILDER.comment("School order for the tab's filter strip (empty = ISS's "
+                            + "registry order); entries are type:<school> tags")
+                    .defineListAllowEmpty("menu.schoolOrder", java.util.List.of(),
+                            value -> value instanceof String text && !text.isBlank());
+
+    // --- the spellbook bar's display (bar.*) ---
+
+    /** Whether cells draw their cooldown sweep. */
+    public static final ModConfigSpec.BooleanValue SHOW_COOLDOWN_SWEEP =
+            BUILDER.comment("Draw the cooldown readiness sweep on spellbook cells")
+                    .define("bar.showCooldownSweep", true);
+
+    /** Whether the bar hides when the book has no castable spells. */
+    public static final ModConfigSpec.BooleanValue HIDE_WHEN_EMPTY =
+            BUILDER.comment("Hide the spellbook bar when the equipped book has no "
+                            + "castable spells (off = it always shows)")
+                    .define("bar.hideWhenEmpty", true);
+
+    /** The Cast verb's icon texture - DEFERRED: baked at RegisterEvent
+     * (the audit's documented decline), same as the mana quote. */
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private IssClientConfig() {
