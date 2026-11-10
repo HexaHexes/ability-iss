@@ -50,6 +50,14 @@ public final class IssServerConfig {
             BUILDER.comment("Armor slots count as holding a spell (the offhand always does)")
                     .define("held.includeArmor", true);
 
+    /** XP a spell grants per successful cast (read live at award time). */
+    public static final ModConfigSpec.DoubleValue SPELL_XP_GAIN =
+            BUILDER.comment("XP one spell cast grants (read live when the award lands, "
+                            + "never at registration): the spell routes half to its "
+                            + "school's category mastery - packs retune the share or any "
+                            + "other spec field through core's mastery_spec datapack overlay")
+                    .defineInRange("mastery.spellXpGain", 10.0, 0.0, 1000000.0);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private IssServerConfig() {

@@ -2,6 +2,7 @@ package org.bitwisemadness.abilityiss.gametest;
 
 import com.mojang.authlib.GameProfile;
 import io.redspace.ironsspellbooks.api.registry.SpellRegistry;
+import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
 import io.redspace.ironsspellbooks.compat.Curios;
 import java.util.UUID;
@@ -28,8 +29,13 @@ import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.CooldownOwners;
+import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
+import org.bitwisemadness.abilitycore.api.MasteryGainHandlers;
+import org.bitwisemadness.abilitycore.api.MasteryTarget;
+import org.bitwisemadness.abilitycore.api.MasteryTrigger;
 import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
 import org.bitwisemadness.abilitycore.discovery.AbilityDiscovery;
+import org.bitwisemadness.abilitycore.mastery.MasteryAttachments;
 import org.bitwisemadness.abilityhotbar.client.LiveCosts;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProviders;
 import org.bitwisemadness.abilityhotbar.registry.AbilityBarScopes;
@@ -40,7 +46,9 @@ import org.bitwisemadness.abilityhotbar.state.SeededAssignments;
 import org.bitwisemadness.abilityiss.IssHotbar;
 import org.bitwisemadness.abilityiss.SpellCellOverlays;
 import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
+import org.bitwisemadness.abilityiss.config.IssServerConfig;
 import org.bitwisemadness.abilityiss.spell.SpellCatalog;
+import org.bitwisemadness.abilityiss.spell.SpellMastery;
 import org.bitwisemadness.abilityiss.spell.SpellMenuTab;
 import top.theillusivec4.curios.api.CuriosApi;
 import top.theillusivec4.curios.api.event.CurioChangeEvent;
@@ -50,10 +58,12 @@ import top.theillusivec4.curios.api.event.CurioChangeEvent;
  * provider), the seeding contract (a worn book seeds its cells, an
  * unworn one clears them) and the cast handler's fail-closed refusals.
  *
- * <p>The success path of a cast is deliberately not asserted here: it
- * needs ISS's mana and selection state end-to-end, which belongs to the
- * author's in-game check (#3's acceptance) - these tests pin the wiring
- * and the refusals the pipeline must never get wrong.</p>
+ * <p>The bar's own cast success path (quick-cast through ISS's
+ * selection state) still belongs to the author's in-game check (#3's
+ * acceptance); what these tests pin is the wiring, the refusals the
+ * pipeline must never get wrong, and - since the mastery slice - the
+ * per-spell declarations plus a directly-initiated cast landing its
+ * award through the mixin.</p>
  */
 @GameTestHolder(IssHotbar.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -456,6 +466,132 @@ public final class IssHotbarGameTests {
         check(!strip.isEmpty(), "the school strip must carry ISS's schools");
         check(strip.stream().anyMatch(tag -> tag.startsWith("type:")),
                 "the strip must be type-tag shaped: " + strip);
+        helper.succeed();
+    }
+
+    /**
+     * The mastery declarations ride the catalog (ability-iss's
+     * REQ-CORE-12 slice): every menu ability declares mastery with the
+     * config-live gain handler, the ACTIVATION trigger, no static base,
+     * its school's category share - and no COST effect yet (ISS's cost
+     * read is player-less; the follow-up issue carries the evidence).
+     */
+    @GameTest(template = "empty")
+    public static void spellMasteryDeclarationsFollowTheCatalog(GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+        check(MasteryGainHandlers.has(SpellMastery.GAIN_HANDLER),
+                "the config-live gain handler must be registered at setup");
+        double expectedGain = IssServerConfig.SPELL_XP_GAIN.get();
+        int withSchool = 0;
+        for (ResourceLocation id : registered) {
+            check(MasteryDeclarations.has(id), "every menu ability declares mastery: " + id);
+            var spec = MasteryDeclarations.get(id).orElseThrow();
+            check(SpellMastery.GAIN_HANDLER.equals(spec.gainHandler()),
+                    "the gain comes from the config-live handler: " + id);
+            check(spec.baseGain() == 0.0,
+                    "the static base is the handler's fail-closed fallback: " + id);
+            check(spec.triggers().equals(java.util.Set.of(MasteryTrigger.ACTIVATION)),
+                    "casts grant; nothing else is declared yet: " + id);
+            check(spec.effects().isEmpty(),
+                    "no COST effect until ISS's cost read gains a player-aware seam: " + id);
+            check(spec.shares().size() <= 1, "at most one school per spell: " + id);
+            for (var share : spec.shares()) {
+                check(share.target().kind() == MasteryTarget.Kind.CATEGORY,
+                        "grants route to the school category: " + id);
+                check(Math.abs(share.share() - SpellMastery.SCHOOL_SHARE) < 1e-9,
+                        "the school share is the declared constant: " + id);
+                withSchool++;
+            }
+        }
+        double answered = MasteryGainHandlers.get(SpellMastery.GAIN_HANDLER).orElseThrow()
+                .gain(null, registered.get(0), MasteryTrigger.ACTIVATION);
+        check(answered == expectedGain,
+                "the gain handler must answer the live config value, got " + answered);
+        check(withSchool > 0, "spells route to schools (the school read must not fail)");
+        helper.succeed();
+    }
+
+    /**
+     * The award end-to-end: a real ISS cast initiation against the mock
+     * player lands the grant through the mixin - the single funnel every
+     * cast path (bar quick-cast, native keybind, wheel) reaches - split
+     * between the spell's own target and its school category. The bar's
+     * quick-path selection state stays the author's in-game check.
+     */
+    @GameTest(template = "empty")
+    public static void spellMasteryCastAwardsThroughTheMixin(GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+
+        var player = mockPlayer(helper);
+        var magicData = io.redspace.ironsspellbooks.api.magic.MagicData
+                .getPlayerMagicData(player);
+        magicData.setMana(9999.0f);
+        var data = MasteryAttachments.data(player);
+        check(data.entries().isEmpty(), "a fresh player starts with no mastery XP");
+
+        // Not every ISS spell cooperates in a harness: targeted spells run
+        // their own pre-cast target helper (no target = refused). Walk the
+        // catalog for one that initiates; a hostile registry lists why not.
+        var refusals = new StringBuilder();
+        ResourceLocation spellId = null;
+        AbstractSpell spell = null;
+        for (ResourceLocation candidate : registered) {
+            IssHotbar.LOGGER.info("mastery probe: {}", candidate);
+            AbstractSpell candidateSpell = SpellRegistry.REGISTRY.getOptional(
+                    net.minecraft.resources.ResourceKey.create(
+                            SpellRegistry.SPELL_REGISTRY_KEY, candidate)).orElse(null);
+            if (candidateSpell == null) {
+                refusals.append(candidate).append("=unresolvable; ");
+                continue;
+            }
+            // the learning gate reads this store server-side (canBeCastedBy
+            // -> isLearned -> getSyncedData); a fresh mock knows nothing
+            magicData.getSyncedData().learnSpell(candidateSpell);
+            int castLevel = Math.max(1, candidateSpell.getMinLevel());
+            var gate = candidateSpell.canBeCastedBy(castLevel,
+                    io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                    magicData, player);
+            if (!gate.isSuccess()) {
+                refusals.append(candidate).append("=gate:")
+                        .append(gate.message == null ? gate.type : gate.message.getString())
+                        .append("; ");
+                continue;
+            }
+            if (!candidateSpell.checkPreCastConditions(player.level(), castLevel, player,
+                    magicData)) {
+                refusals.append(candidate).append("=preconditions; ");
+                continue;
+            }
+            if (candidateSpell.attemptInitiateCast(ItemStack.EMPTY, castLevel,
+                    player.level(), player,
+                    io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                    true, "")) {
+                IssHotbar.LOGGER.info("mastery probe: {} -> initiated", candidate);
+                spellId = candidate;
+                spell = candidateSpell;
+                break;
+            }
+            refusals.append(candidate).append("=initiate-false; ");
+        }
+        check(spellId != null, "no ISS spell initiates in the harness: " + refusals);
+
+        // the mixin already fired on that successful initiation: the
+        // configured gain split by the school share - or all to self when
+        // the school read answered nothing
+        double gain = IssServerConfig.SPELL_XP_GAIN.get();
+        boolean hasSchool = SpellCatalog.schoolOf(spell) != null;
+        double expectedOwn = hasSchool ? gain * (1.0 - SpellMastery.SCHOOL_SHARE) : gain;
+        double own = data.xp(MasteryTarget.ability(spellId).key());
+        check(Math.abs(own - expectedOwn) < 1e-9,
+                "the mixin awards the configured gain (self part), got " + own);
+        if (hasSchool) {
+            double routed = data.xp(
+                    MasteryTarget.category(SpellCatalog.schoolOf(spell)).key());
+            check(Math.abs(routed - gain * SpellMastery.SCHOOL_SHARE) < 1e-9,
+                    "the school category receives its share, got " + routed);
+        }
         helper.succeed();
     }
 

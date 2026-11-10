@@ -3,7 +3,9 @@
   "minVersion": "0.8",
   "package": "org.bitwisemadness.abilityiss.mixin",
   "compatibilityLevel": "JAVA_21",
-  "mixins": [],
+  "mixins": [
+    "SpellCastAwardMixin"
+  ],
   "client": [],
   "server": [],
   "injectors": {
