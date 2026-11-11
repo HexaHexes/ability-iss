@@ -1,9 +1,12 @@
 package org.bitwisemadness.abilityiss.spell;
 
+import io.github.manasmods.manascore.config.ConfigRegistry;
+import io.github.manasmods.manascore.config.api.ManasConfig;
 import io.redspace.ironsspellbooks.api.registry.SchoolRegistry;
 import io.redspace.ironsspellbooks.api.registry.SpellRegistry;
 import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import io.redspace.ironsspellbooks.api.spells.CastType;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -11,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
+import net.neoforged.fml.ModList;
 import org.bitwisemadness.abilitycore.api.AbilityDefinition;
 import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
@@ -146,15 +150,114 @@ public final class SpellCatalog {
      * the baked list instead of blanking the row. A spell that genuinely
      * costs nothing answers an empty list, not null - the distinction the
      * fallback contract turns on.
+     *
+     * <p>With {@code tensura_iron_spells} in force the quote is its
+     * <b>magicule</b> charge (its conversion config loads after every
+     * RegisterEvent - exactly why this re-reads at display time); the mod
+     * absent, unreadable, or its conversion off falls back to native
+     * mana.</p>
      */
     @Nullable
     static List<ResourceCost> liveCostsFor(AbstractSpell spell) {
         try {
             int mana = spell.getManaCost(Math.max(1, spell.getMinLevel()));
-            return mana > 0
-                    ? List.of(new ResourceCost("irons_spellbooks:mana", mana))
-                    : List.of();
+            if (mana <= 0) {
+                return List.of();
+            }
+            Double multiplier = tensuraMagiculeMultiplier();
+            List<ResourceCost> converted =
+                    multiplier == null ? null : magiculeCosts(mana, multiplier);
+            return converted != null
+                    ? converted
+                    : List.of(new ResourceCost("irons_spellbooks:mana", mana));
         } catch (RuntimeException upstream) {
+            return null;
+        }
+    }
+
+    /**
+     * The tensura_iron_spells repriced quote (pure): the charge is
+     * {@code mana x multiplier} in magicule (its {@code onSpellCast}),
+     * plus the mana remainder a sub-1 multiplier keeps - truncated
+     * exactly as the charge truncates it. A non-positive or non-finite
+     * multiplier means the conversion is off: null, and the caller
+     * quotes native mana.
+     *
+     * @param mana       the spell's native mana cost
+     * @param multiplier t_i_s's mana-to-magicule conversion
+     * @return the quote, or null when the conversion is off
+     */
+    @Nullable
+    static List<ResourceCost> magiculeCosts(int mana, double multiplier) {
+        if (!Double.isFinite(multiplier) || multiplier <= 0.0) {
+            return null;
+        }
+        double magicule = mana * multiplier;
+        List<ResourceCost> costs = new ArrayList<>(2);
+        costs.add(new ResourceCost("tensura:magicule", magicule));
+        int remainder = (int) (mana - magicule);
+        if (remainder > 0) {
+            costs.add(new ResourceCost("irons_spellbooks:mana", remainder));
+        }
+        return List.copyOf(costs);
+    }
+
+    /** tensura_iron_spells: the mod id and the config class it reads. */
+    private static final String TINS_MOD_ID = "tensura_iron_spells";
+    private static final String TINS_CONFIG_CLASS =
+            "io.github.manasmods.tensura_iron.neoforge.IronConfig";
+
+    /** One resolved t_i_s accessor (config class + multiplier field). */
+    private record TinsConfig(Class<? extends ManasConfig> type, Field multiplier) {
+    }
+
+    private static volatile TinsConfig tinsConfig;
+    private static volatile boolean tinsResolved;
+
+    /**
+     * tensura_iron_spells' live mana-to-magicule multiplier, or null when
+     * the mod is absent, its config class moved, or its config is not
+     * loaded yet (every fallback quotes native mana - fail-soft by the
+     * LiveCosts contract). The accessor resolves once (a missing
+     * third-party class is stable per session); the VALUE reads live, so
+     * a config reload applies to the very next display.
+     */
+    @Nullable
+    private static Double tensuraMagiculeMultiplier() {
+        if (!ModList.get().isLoaded(TINS_MOD_ID)) {
+            return null;
+        }
+        TinsConfig config = tinsConfig;
+        if (config == null && !tinsResolved) {
+            synchronized (SpellCatalog.class) {
+                if (tinsConfig == null && !tinsResolved) {
+                    tinsConfig = resolveTinsConfig();
+                    tinsResolved = true;
+                }
+            }
+            config = tinsConfig;
+        }
+        if (config == null) {
+            return null;
+        }
+        try {
+            ManasConfig loaded = ConfigRegistry.getConfig(config.type());
+            return loaded == null ? null
+                    : (double) config.multiplier().getFloat(loaded);
+        } catch (RuntimeException | ReflectiveOperationException unreadable) {
+            return null;
+        }
+    }
+
+    /** The t_i_s config class + its public field, or null when absent. */
+    @Nullable
+    private static TinsConfig resolveTinsConfig() {
+        try {
+            Class<?> raw = Class.forName(TINS_CONFIG_CLASS);
+            @SuppressWarnings("unchecked")
+            Class<? extends ManasConfig> type = (Class<? extends ManasConfig>) raw;
+            return new TinsConfig(type, raw.getField("manaConversionMultiplier"));
+        } catch (ClassNotFoundException | NoSuchFieldException | SecurityException absent) {
             return null;
         }
     }

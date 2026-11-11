@@ -28,6 +28,10 @@ Tensura RPG pack.
   and the bar only carries the outcome (hotbar fires intents only). Slot
   dispatch runs fail-closed through Ability Core's slot gate - a stale
   cell, a missing context or an empty book refuses instead of guessing.
+- **Costs quote live** (`LiveCosts`): rows and the pane re-read the price
+  at display time, and with `tensura_iron_spells` installed that price is
+  the spell's **magicule** charge - its conversion config loads after
+  every RegisterEvent, so a baked quote could only ever carry native mana.
 - **Mastery** (REQ-CORE-12): every successful cast - bar, native keybind
   or wheel, they share one initiation funnel - grants the spell its
   configured XP (`mastery.spellXpGain`, server config, read live at
