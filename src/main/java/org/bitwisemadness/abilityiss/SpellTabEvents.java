@@ -9,6 +9,7 @@ import net.neoforged.neoforge.registries.RegisterEvent;
 import org.bitwisemadness.abilitycore.api.AbilityDefinition;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
 import org.bitwisemadness.abilityiss.spell.SpellCatalog;
+import org.bitwisemadness.abilityiss.spell.SpellMastery;
 import org.bitwisemadness.abilityiss.spell.SpellMenuTab;
 import org.bitwisemadness.abilityiss.spell.SpellProviders;
 
@@ -49,6 +50,9 @@ public final class SpellTabEvents {
             return;
         }
         SpellCatalog.register(registry);
+        // The mastery declarations ride the same event: a spell that is a
+        // menu ability is a mastery participant, id sets always aligned
+        SpellMastery.declareAll();
     }
 
     /** Providers + tab after every spell id is tracked (registry phase precedes setup). */
@@ -56,5 +60,8 @@ public final class SpellTabEvents {
     public static void onCommonSetup(FMLCommonSetupEvent event) {
         SpellProviders.declareAll();
         SpellMenuTab.register();
+        // The config-live gain handler (names resolve at first award, so
+        // this order against declareAll is free)
+        SpellMastery.registerGainHandler();
     }
 }

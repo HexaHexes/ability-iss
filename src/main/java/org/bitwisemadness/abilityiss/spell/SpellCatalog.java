@@ -162,12 +162,23 @@ public final class SpellCatalog {
     /** The {@code type:} school tag for the subcategory strip, or none. */
     @Nullable
     private static String schoolTag(AbstractSpell spell) {
+        // the spell's DECLARED default school (owner: the config-
+        // manager read defaulted to one school for every spell - all
+        // Evocation - so the strip never reads it)
+        ResourceLocation school = schoolOf(spell);
+        return school == null ? null : "type:" + school.getPath();
+    }
+
+    /**
+     * The spell's declared default school (owner: the same read the strip
+     * uses, raw) - mastery routes each spell's grants to this school's
+     * category, or to the spell alone when the read fails. Public for the
+     * mastery slice's gametest pins.
+     */
+    @Nullable
+    public static ResourceLocation schoolOf(AbstractSpell spell) {
         try {
-            // the spell's DECLARED default school (owner: the config-
-            // manager read defaulted to one school for every spell - all
-            // Evocation - so the strip never reads it)
-            ResourceLocation school = spell.getDefaultConfig().schoolResource;
-            return school == null ? null : "type:" + school.getPath();
+            return spell.getDefaultConfig().schoolResource;
         } catch (RuntimeException upstream) {
             return null;
         }
