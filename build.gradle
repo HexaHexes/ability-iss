@@ -163,6 +163,9 @@ dependencies {
     compileOnly "curse.maven:curios-309927:${curiosFileId}"
     compileOnly "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
     compileOnly "org.bitwisemadness.abilityhotbar:ability_hotbar:${abilityHotbarVersion}"
+    // the spell catalog's unit tests link core's ResourceCost at runtime
+    // (the curios/tensura testImplementation pattern)
+    testImplementation "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
 
     // The HUD swap compiles against Tensura's client config/overlay and
     // manascore's config registry (iss's FIRST soft dependency): both
