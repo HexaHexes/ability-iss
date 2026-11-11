@@ -3,6 +3,7 @@ package org.bitwisemadness.abilityiss.spell;
 import io.redspace.ironsspellbooks.api.registry.SpellRegistry;
 import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import net.minecraft.resources.ResourceLocation;
+import org.bitwisemadness.abilitycore.api.MasteryAxis;
 import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
 import org.bitwisemadness.abilitycore.api.MasteryGainHandlers;
 import org.bitwisemadness.abilitycore.api.MasterySpec;
@@ -24,12 +25,19 @@ import org.bitwisemadness.abilityiss.config.IssServerConfig;
  * any effect through core's mastery_spec datapack overlay (core#138);
  * the server config owns the number.</p>
  *
- * <p>The COST effect axis is deliberately <b>not</b> declared: ISS's
- * mana cost reads through the player-less {@code AbstractSpell
- * .getManaCost(int)}, so core's per-caster discount has no seam to
- * apply through. Issue #28 carries that bytecode evidence and
- * {@code getEffectiveCastTime(int, LivingEntity)} - which does take the
- * caster - as the cast-time candidate.</p>
+ * <p><b>Mastery improves the spells</b> (the owner's directive, closing
+ * #28): every spec declares COST, CAST_TIME and POWER through core's
+ * default curve (server config: {@code mastery.costReductionPerLevel}
+ * etc.). Each axis bites at its seam - COST at the check
+ * ({@code canBeCastedBy}'s mana read), the charge
+ * ({@code SpellOnCastEvent}, where ISS deducts) and the row quote
+ * ({@link SpellCatalog#liveCostsFor}, rounding identically so all three
+ * can never disagree); CAST_TIME on {@code getEffectiveCastTime}'s
+ * return (the caster is a parameter, and the tooltip reads the same
+ * method); POWER on {@code getSpellPower}'s return. DURATION stays
+ * undeclared: no caster-scoped duration seam exists yet (filed).
+ * {@code docs/spell-inventory.md} categorises all 113 spells by
+ * activation and effect family - the basis for these choices.</p>
  */
 public final class SpellMastery {
 
@@ -54,7 +62,13 @@ public final class SpellMastery {
             if (spellId == null || MasteryDeclarations.has(spellId)) {
                 continue;
             }
-            MasterySpec spec = MasterySpec.gained(0.0).withGainHandler(GAIN_HANDLER);
+            MasterySpec spec = MasterySpec.gained(0.0).withGainHandler(GAIN_HANDLER)
+                    // the three seams this slice builds: check+charge+
+                    // row quote, the effective cast time, the power
+                    // scaling - all default-curve (server config)
+                    .withEffect(MasteryAxis.COST)
+                    .withEffect(MasteryAxis.CAST_TIME)
+                    .withEffect(MasteryAxis.POWER);
             ResourceLocation school = SpellCatalog.schoolOf(spell);
             if (school != null) {
                 spec = spec.withShare(MasteryTarget.category(school), SCHOOL_SHARE);

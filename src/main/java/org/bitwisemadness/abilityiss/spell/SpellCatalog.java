@@ -20,7 +20,9 @@ import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AmountResolvers;
 import org.bitwisemadness.abilitycore.api.ConsumptionStrategies;
 import org.bitwisemadness.abilitycore.api.ResourceCost;
+import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
 import org.bitwisemadness.abilityhotbar.client.LiveCosts;
+import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -151,11 +153,16 @@ public final class SpellCatalog {
      * costs nothing answers an empty list, not null - the distinction the
      * fallback contract turns on.
      *
-     * <p>With {@code tensura_iron_spells} in force the quote is its
-     * <b>magicule</b> charge (its conversion config loads after every
-     * RegisterEvent - exactly why this re-reads at display time); the mod
-     * absent, unreadable, or its conversion off falls back to native
-     * mana.</p>
+     * <p>The quote carries the <b>mastery COST discount</b> rounded with
+     * the same {@code Math.round} on the same base as the check
+     * ({@code CastManaCostMasteryMixin}) and the charge
+     * ({@link MasteryCostEvents}) - all three can never disagree - and
+     * with {@code tensura_iron_spells} in force the remainder is its
+     * <b>magicule</b> conversion (its config loads after every
+     * RegisterEvent - exactly why this re-reads at display time). The
+     * discount comes from the menu's answered snapshot (server truth,
+     * client-side); before any answer the quote shows the native number,
+     * which is what an undiscounted charge would take.</p>
      */
     @Nullable
     static List<ResourceCost> liveCostsFor(AbstractSpell spell) {
@@ -164,15 +171,35 @@ public final class SpellCatalog {
             if (mana <= 0) {
                 return List.of();
             }
+            int discounted = (int) Math.round(mana * masteryCostDiscount(spell));
             Double multiplier = tensuraMagiculeMultiplier();
             List<ResourceCost> converted =
-                    multiplier == null ? null : magiculeCosts(mana, multiplier);
+                    multiplier == null ? null : magiculeCosts(discounted, multiplier);
             return converted != null
                     ? converted
-                    : List.of(new ResourceCost("irons_spellbooks:mana", mana));
+                    : List.of(new ResourceCost("irons_spellbooks:mana", discounted));
         } catch (RuntimeException upstream) {
             return null;
         }
+    }
+
+    /**
+     * The spell's current COST multiplier from the menu's answered
+     * snapshot, or 1.0 when no answer has arrived yet (the snapshot is
+     * solicited on menu open; rows only render while it is open, so the
+     * quoted price converges within a frame of the answer).
+     */
+    private static double masteryCostDiscount(AbstractSpell spell) {
+        ResourceLocation id = SpellRegistry.REGISTRY.getKey(spell);
+        if (id == null) {
+            return 1.0;
+        }
+        for (MasteryQueryResponse.Bonus bonus : CoreMasteryCompat.bonusesOf(id)) {
+            if ("COST".equals(bonus.axis())) {
+                return bonus.multiplier();
+            }
+        }
+        return 1.0;
     }
 
     /**

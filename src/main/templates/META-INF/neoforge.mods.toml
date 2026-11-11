@@ -55,28 +55,33 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_core"
 type = "required"
-# alpha.01 of the 1.0.2 line is both the floor and the gate: this mod
-# CONSUMES the mastery contract (REQ-CORE-12, core#137 - declarations,
-# awards, effect reads) that shipped there, on top of the slot gate
-# (ability-core#87, alpha.40) the cast handler already uses. The floor
-# turns the break history into a boot refusal: the resource series
-# reshaped AbilityDefinition's constructor at alpha.34/35/39 and each
-# break crashed older binaries at RegisterEvent (Tensura RPG,
-# 2026-11-06) - a pre-1.0.2 pack now gets a loud dependency error
-# instead. Packs authoring mastery_spec overlays want alpha.02+ (core#138).
-versionRange = "[1.0.2-alpha.01,)"
+# alpha.02 of the 1.1.0 line is the floor: the row's live quote reads
+# the query answer's COST bonus through hotbar's CoreMasteryCompat
+# (REQ-CORE-12 effects slice - Entry.bonuses ships with the channel v5
+# bump; both sides must run the same channel version or they disconnect
+# at negotiation). Under it sit the mastery contract (1.0.2-alpha.01,
+# core#137 - declarations, awards, effect reads) and the slot gate
+# (ability-core#87). The floor turns the break history into a boot
+# refusal: the resource series reshaped AbilityDefinition's constructor
+# at alpha.34/35/39 and each break crashed older binaries at
+# RegisterEvent (Tensura RPG, 2026-11-06) - a too-old pack now gets a
+# loud dependency error instead. Packs authoring mastery_spec overlays
+# want the datapack layer (core#138+).
+versionRange = "[1.1.0-alpha.02,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-# alpha.100: the oldest hotbar carrying every API this mod's Spells tab
-# consumes (TabContent handlers, informational tabs, registerCategoryTabs,
-# subCategoryIcon) plus registerBarForTab (alpha.99 - the strip shows the
-# spellbook's provider bar) and LiveCosts (alpha.100 - the pane quotes a
-# spell's current mana cost) - older ones never register the tab's shape.
-versionRange = "[1.0.0-alpha.100,)"
+# alpha.05 of the 1.0.1 line is the floor: CoreMasteryCompat.bonusesOf -
+# the row's live quote reads the snapshot's COST discount from it (the
+# mastery effects slice), so older hotbars have no discount source. It
+# also carries every API the Spells tab consumes (registerBarForTab
+# alpha.99, LiveCosts alpha.100, TabContent/informational tabs,
+# registerCategoryTabs, subCategoryIcon) - older ones never register the
+# tab's shape.
+versionRange = "[1.0.1-alpha.05,)"
 ordering = "AFTER"
 side = "BOTH"
 
