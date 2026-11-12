@@ -32,10 +32,14 @@ import org.bitwisemadness.abilityiss.config.IssServerConfig;
  * <p>Per cast a spell grants the configured base gain - through a gain
  * handler that reads {@code mastery.spellXpGain} <b>live</b> at award
  * time (IssServerConfig's read-at-use-time rule; a config reload applies
- * to the very next cast) - and routes {@link #SCHOOL_SHARE} of it to its
- * school's category mastery. Packs retune the share, the gain shape or
- * any effect through core's mastery_spec datapack overlay (core#138);
- * the server config owns the number.</p>
+ * to the very next cast) - and routes {@code mastery.schoolShare}
+ * (default 20%) of it to the spell's {@link SchoolMastery} ability: the
+ * school's mastery pool, whose level feeds back into this spell's
+ * aggregate through the same share. The share is config-live too: a
+ * load or reload re-declares the specs ({@link #redeclareAll}), so the
+ * next cast routes the file's number. Packs retune the share, the gain
+ * shape or any effect through core's mastery_spec datapack overlay
+ * (core#138); the server config owns the number.</p>
  *
  * <p><b>Mastery improves the spells</b> (the owner's directive, closing
  * #28): every spec declares COST, CAST_TIME and POWER through core's
@@ -56,9 +60,6 @@ import org.bitwisemadness.abilityiss.config.IssServerConfig;
  * activation and effect family - the basis for these choices.</p>
  */
 public final class SpellMastery {
-
-    /** Every grant's share routed to the spell's school category. */
-    public static final double SCHOOL_SHARE = 0.5;
 
     /** The gain handler's name (registered once; resolves at first award). */
     public static final String GAIN_HANDLER = "ability_iss:spell_xp";
@@ -101,23 +102,60 @@ public final class SpellMastery {
             if (spellId == null || MasteryDeclarations.has(spellId)) {
                 continue;
             }
-            MasterySpec spec = MasterySpec.gained(0.0).withGainHandler(GAIN_HANDLER)
-                    // the three seams this slice builds: check+charge+
-                    // row quote, the effective cast time, the power
-                    // scaling - all default-curve (server config)
-                    .withEffect(MasteryAxis.COST)
-                    .withEffect(MasteryAxis.CAST_TIME)
-                    .withEffect(MasteryAxis.POWER);
-            if (RANGE_SEAM.contains(spell.getClass())) {
-                // RANGE joins only for the twelve mixin-covered spells:
-                // the pane's bonus is never a promise without a seam
-                spec = spec.withEffect(MasteryAxis.RANGE);
+            MasteryDeclarations.declare(spellId, specFor(spell));
+        }
+    }
+
+    /**
+     * One spell's declared contract: the config-live gain handler, the
+     * effect seams (COST/CAST_TIME/POWER, plus RANGE on the seam spells)
+     * and the school share - {@code mastery.schoolShare} routed to this
+     * spell's {@link SchoolMastery} ability. The same weight carries the
+     * school's level back into the spell's aggregate (core's share math
+     * is one number both ways - see SchoolMastery's class doc).
+     *
+     * @param spell the live registry instance
+     * @return the spec to declare
+     */
+    static MasterySpec specFor(AbstractSpell spell) {
+        MasterySpec spec = MasterySpec.gained(0.0).withGainHandler(GAIN_HANDLER)
+                // the three seams this slice builds: check+charge+
+                // row quote, the effective cast time, the power
+                // scaling - all default-curve (server config)
+                .withEffect(MasteryAxis.COST)
+                .withEffect(MasteryAxis.CAST_TIME)
+                .withEffect(MasteryAxis.POWER);
+        if (RANGE_SEAM.contains(spell.getClass())) {
+            // RANGE joins only for the eleven mixin-covered spells:
+            // the pane's bonus is never a promise without a seam
+            spec = spec.withEffect(MasteryAxis.RANGE);
+        }
+        ResourceLocation schoolAbility =
+                SchoolMastery.abilityId(SpellCatalog.schoolOf(spell));
+        if (schoolAbility != null) {
+            spec = spec.withShare(MasteryTarget.ability(schoolAbility),
+                    IssServerConfig.schoolShare());
+        }
+        return spec;
+    }
+
+    /**
+     * Re-declares every spell against the CURRENT config (the
+     * ModConfigEvent load/reload path): shares live structurally in the
+     * declared specs, so a changed {@code mastery.schoolShare} applies
+     * by rebuilding them - the very next cast routes the new number.
+     * Datapack overlays re-merge at read time, so tuning survives; the
+     * remove-then-declare window can only let one racing award keep its
+     * full self remainder (never a wrong split).
+     */
+    public static void redeclareAll() {
+        for (AbstractSpell spell : SpellRegistry.REGISTRY.stream().toList()) {
+            ResourceLocation spellId = SpellRegistry.REGISTRY.getKey(spell);
+            if (spellId == null) {
+                continue;
             }
-            ResourceLocation school = SpellCatalog.schoolOf(spell);
-            if (school != null) {
-                spec = spec.withShare(MasteryTarget.category(school), SCHOOL_SHARE);
-            }
-            MasteryDeclarations.declare(spellId, spec);
+            MasteryDeclarations.remove(spellId);
+            MasteryDeclarations.declare(spellId, specFor(spell));
         }
     }
 

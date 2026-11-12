@@ -7,6 +7,7 @@ import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import io.redspace.ironsspellbooks.api.spells.CastType;
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
 import io.redspace.ironsspellbooks.compat.Curios;
+import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
@@ -54,6 +55,7 @@ import org.bitwisemadness.abilityiss.IssHotbar;
 import org.bitwisemadness.abilityiss.SpellCellOverlays;
 import org.bitwisemadness.abilityiss.compat.SpellbookBarBridge;
 import org.bitwisemadness.abilityiss.config.IssServerConfig;
+import org.bitwisemadness.abilityiss.spell.SchoolMastery;
 import org.bitwisemadness.abilityiss.spell.SpellCatalog;
 import org.bitwisemadness.abilityiss.spell.SpellMastery;
 import org.bitwisemadness.abilityiss.spell.SpellMenuTab;
@@ -528,10 +530,13 @@ public final class IssHotbarGameTests {
                             + "spells): " + id + " got " + spec.effects().keySet());
             check(spec.shares().size() <= 1, "at most one school per spell: " + id);
             for (var share : spec.shares()) {
-                check(share.target().kind() == MasteryTarget.Kind.CATEGORY,
-                        "grants route to the school category: " + id);
-                check(Math.abs(share.share() - SpellMastery.SCHOOL_SHARE) < 1e-9,
-                        "the school share is the declared constant: " + id);
+                check(share.target().kind() == MasteryTarget.Kind.ABILITY,
+                        "grants route to the school's mastery ability: " + id);
+                check(share.target().id().getNamespace().equals("ability_iss")
+                                && share.target().id().getPath().startsWith("mastery_"),
+                        "the target is a school-mastery ability, got " + share.target().id());
+                check(Math.abs(share.share() - IssServerConfig.schoolShare()) < 1e-9,
+                        "the school share is the config's number: " + id);
                 withSchool++;
             }
         }
@@ -613,15 +618,17 @@ public final class IssHotbarGameTests {
         // the school read answered nothing
         double gain = IssServerConfig.SPELL_XP_GAIN.get();
         boolean hasSchool = SpellCatalog.schoolOf(spell) != null;
-        double expectedOwn = hasSchool ? gain * (1.0 - SpellMastery.SCHOOL_SHARE) : gain;
+        double share = IssServerConfig.schoolShare();
+        double expectedOwn = hasSchool ? gain * (1.0 - share) : gain;
         double own = data.xp(MasteryTarget.ability(spellId).key());
         check(Math.abs(own - expectedOwn) < 1e-9,
                 "the mixin awards the configured gain (self part), got " + own);
         if (hasSchool) {
-            double routed = data.xp(
-                    MasteryTarget.category(SpellCatalog.schoolOf(spell)).key());
-            check(Math.abs(routed - gain * SpellMastery.SCHOOL_SHARE) < 1e-9,
-                    "the school category receives its share, got " + routed);
+            ResourceLocation schoolAbility =
+                    SchoolMastery.abilityId(SpellCatalog.schoolOf(spell));
+            double routed = data.xp(MasteryTarget.ability(schoolAbility).key());
+            check(Math.abs(routed - gain * share) < 1e-9,
+                    "the school ability receives its share, got " + routed);
         }
         helper.succeed();
     }
@@ -787,7 +794,8 @@ public final class IssHotbarGameTests {
         // the config-live gain, routed the way every cast routes it
         double gain = IssServerConfig.SPELL_XP_GAIN.get();
         boolean hasSchool = SpellCatalog.schoolOf(spell) != null;
-        double perCast = hasSchool ? gain * (1.0 - SpellMastery.SCHOOL_SHARE) : gain;
+        double perCast = hasSchool
+                ? gain * (1.0 - IssServerConfig.schoolShare()) : gain;
         check(perCast > 0.0, "the fixture gain must be positive, got " + perCast);
         var data = MasteryAttachments.data(player);
 
@@ -850,6 +858,158 @@ public final class IssHotbarGameTests {
         check(Math.abs(view.ownXp() - afterThird) < 1e-9,
                 "the mastery view must read the same pool, got " + view.ownXp());
         helper.succeed();
+    }
+
+    /**
+     * The school-mastery abilities (owner's brief): one passive row per
+     * school the catalog lists - no costs, no effects, never castable
+     * (INSTANT with no handler) - whose level feeds every spell of that
+     * school. A cast routes the config share (default 20%) of its grant
+     * to the school ability; the SAME share weights the school's level
+     * back into the spell's aggregate, so the school level reaches the
+     * effect curves; a spell of another school never sees it; and a
+     * config reload re-declares the shares so the next cast routes the
+     * file's number.
+     */
+    @GameTest(template = "empty")
+    public static void schoolMasteryAbilitiesFeedAndBoostSchoolSpells(
+            GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+        var schoolAbilities = SchoolMastery.registered();
+        check(!schoolAbilities.isEmpty(),
+                "every catalog school must get a mastery ability");
+
+        // one ability per school the catalog's spells belong to, all passive
+        java.util.Set<ResourceLocation> schools = new java.util.HashSet<>();
+        ResourceLocation spellId = null;
+        AbstractSpell spell = null;
+        for (ResourceLocation id : registered) {
+            AbstractSpell resolved = resolveSpell(id);
+            check(resolved != null, "every registered id resolves: " + id);
+            ResourceLocation school = SpellCatalog.schoolOf(resolved);
+            if (school == null) {
+                continue;
+            }
+            schools.add(school);
+            ResourceLocation schoolAbility = SchoolMastery.abilityId(school);
+            check(schoolAbilities.contains(schoolAbility),
+                    "the school has a mastery ability: " + school);
+            if (spellId == null) {
+                spellId = id;
+                spell = resolved;
+            }
+        }
+        check(schoolAbilities.size() == schools.size(),
+                "exactly one ability per school, got " + schoolAbilities.size()
+                        + " abilities for " + schools.size() + " schools");
+        if (spell == null || spellId == null) {
+            throw new GameTestAssertException("some spell must have a school");
+        }
+        assertSchoolAbilityShapes(schoolAbilities);
+
+        double originalShare = IssServerConfig.SCHOOL_SHARE.get();
+        try {
+            IssServerConfig.SCHOOL_SHARE.set(0.2);
+            SpellMastery.redeclareAll();
+            ServerPlayer player = mockPlayer(helper);
+            var data = MasteryAttachments.data(player);
+
+            // a cast routes the share to the school ability, rest to self
+            MasteryAwards.award(player, spellId, MasteryTrigger.ACTIVATION, 10_000.0);
+            ResourceLocation schoolAbility =
+                    SchoolMastery.abilityId(SpellCatalog.schoolOf(spell));
+            double routed = data.xp(MasteryTarget.ability(schoolAbility).key());
+            double own = data.xp(MasteryTarget.ability(spellId).key());
+            check(Math.abs(routed - 10_000.0 * 0.2) < 1e-9,
+                    "the school ability receives 20%, got " + routed);
+            check(Math.abs(own - 10_000.0 * 0.8) < 1e-9,
+                    "the spell keeps the remainder, got " + own);
+
+            // the school's level feeds the spell's aggregate through the
+            // same share: aggregate = own + share x school level
+            var view = MasteryView.of(player, spellId);
+            int schoolLevel = MasteryView.of(player, schoolAbility).ownLevel();
+            check(schoolLevel > 0, "the school ability must have leveled");
+            check(Math.abs(view.aggregateLevel()
+                            - (view.ownLevel() + 0.2 * schoolLevel)) < 1e-9,
+                    "aggregate = own + 0.2 x school level, got " + view.aggregateLevel());
+            check(view.aggregateLevel() > view.ownLevel(),
+                    "the school level must actually contribute");
+
+            // a spell of ANOTHER school never sees this school's ability
+            check(schools.size() >= 2, "the catalog needs two schools to cross-check");
+            ResourceLocation spellSchool = SpellCatalog.schoolOf(spell);
+            if (spellSchool == null) {
+                throw new GameTestAssertException("the chosen spell must keep its school");
+            }
+            AbstractSpell other = findSpellOfAnotherSchool(registered, spellSchool);
+            if (other == null) {
+                throw new GameTestAssertException("a second school's spell must exist");
+            }
+            ResourceLocation otherId = SpellRegistry.REGISTRY.getKey(other);
+            if (otherId == null) {
+                throw new GameTestAssertException("the other school's spell must resolve");
+            }
+            var otherView = MasteryView.of(player, otherId);
+            check(Math.abs(otherView.aggregateLevel() - otherView.ownLevel()) < 1e-9,
+                    "another school's spell sees only its own level, got "
+                            + otherView.aggregateLevel());
+
+            // config-live: a reload re-declares, the next grant routes 50%
+            IssServerConfig.SCHOOL_SHARE.set(0.5);
+            SpellMastery.redeclareAll();
+            MasteryAwards.award(player, spellId, MasteryTrigger.ACTIVATION, 10_000.0);
+            double after = data.xp(MasteryTarget.ability(schoolAbility).key());
+            check(Math.abs((after - routed) - 10_000.0 * 0.5) < 1e-9,
+                    "after the reload the next grant routes 50%, got "
+                            + (after - routed));
+        } finally {
+            IssServerConfig.SCHOOL_SHARE.set(originalShare);
+            SpellMastery.redeclareAll();
+        }
+        helper.succeed();
+    }
+
+    /** The school ability's shape: INSTANT with no handler, no cost, own
+     *  category, and a spec holding a level and nothing else. */
+    private static void assertSchoolAbilityShapes(List<ResourceLocation> schoolAbilities) {
+        for (ResourceLocation id : schoolAbilities) {
+            var definition = AbilityDiscovery.get(id).orElse(null);
+            check(definition != null, "the school ability resolves: " + id);
+            check(definition.activationType() == ActivationType.INSTANT,
+                    "passive row: INSTANT with no handler, got "
+                            + definition.activationType());
+            check(definition.costs().isEmpty(), "no cost: " + id);
+            check(SchoolMastery.CATEGORY.equals(definition.category()),
+                    "its own category keeps it out of the Spells tab: " + id);
+            var spec = MasteryDeclarations.get(id).orElseThrow();
+            check(spec.effects().isEmpty(), "no active effect: " + id);
+            check(spec.baseGain() == 0.0, "never the award source: " + id);
+        }
+    }
+
+    /** A registered spell of a different school than the given one, or null. */
+    private static AbstractSpell findSpellOfAnotherSchool(
+            List<ResourceLocation> registered, ResourceLocation school) {
+        for (ResourceLocation id : registered) {
+            AbstractSpell candidate = resolveSpell(id);
+            if (candidate == null) {
+                continue;
+            }
+            ResourceLocation candidateSchool = SpellCatalog.schoolOf(candidate);
+            if (candidateSchool != null && !candidateSchool.equals(school)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /** The registry instance for an id, or null when it does not resolve. */
+    private static AbstractSpell resolveSpell(ResourceLocation id) {
+        return SpellRegistry.REGISTRY.getOptional(
+                net.minecraft.resources.ResourceKey.create(
+                        SpellRegistry.SPELL_REGISTRY_KEY, id)).orElse(null);
     }
 
     /**
