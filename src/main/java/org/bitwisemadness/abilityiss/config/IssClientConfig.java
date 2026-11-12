@@ -81,6 +81,14 @@ public final class IssClientConfig {
                             + "castable spells (off = it always shows)")
                     .define("bar.hideWhenEmpty", true);
 
+    /** How often the client refreshes the iron.wiki descriptions (0 = never). */
+    public static final ModConfigSpec.IntValue WIKI_REFRESH_HOURS =
+            BUILDER.comment("Hours between iron.wiki description refreshes (0 = never; "
+                            + "one fetch at launch, then this interval). The download "
+                            + "applies at the NEXT launch - the menu's data is fixed at "
+                            + "boot. Default: 24.")
+                    .defineInRange("menu.wikiRefreshHours", 24, 0, 720);
+
     /** The Cast verb's icon texture - DEFERRED: baked at RegisterEvent
      * (the audit's documented decline), same as the mana quote. */
 

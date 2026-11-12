@@ -27,6 +27,8 @@
   "ability_iss.configuration.spellXpGain.tooltip": "XP one spell cast grants, read live when the award lands. Default: 10.",
   "ability_iss.configuration.schoolShare": "School share",
   "ability_iss.configuration.schoolShare.tooltip": "Share of every spell's mastery grant routed to its school's mastery ability (0.20 = 20%); the same share weights the school's level into that spell's bonuses. A reload applies to the next cast. Default: 0.2.",
+  "ability_iss.configuration.wikiRefreshHours": "Wiki refresh (hours)",
+  "ability_iss.configuration.wikiRefreshHours.tooltip": "Hours between iron.wiki description refreshes (0 = never; one fetch at launch, then this interval). The download applies at the next launch. Default: 24.",
   "ability_iss.configuration.icon": "Tab icon",
   "ability_iss.configuration.icon.tooltip": "The Spells tab's icon as an item id (empty = no icon). Default: the Divine Pearl.",
   "ability_iss.configuration.sprite": "Tab sprite",
