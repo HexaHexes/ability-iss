@@ -2,6 +2,18 @@ package org.bitwisemadness.abilityiss.spell;
 
 import io.redspace.ironsspellbooks.api.registry.SpellRegistry;
 import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
+import io.redspace.ironsspellbooks.spells.blood.RayOfSiphoningSpell;
+import io.redspace.ironsspellbooks.spells.eldritch.EldritchBlastSpell;
+import io.redspace.ironsspellbooks.spells.eldritch.SonicBoomSpell;
+import io.redspace.ironsspellbooks.spells.eldritch.TelekinesisSpell;
+import io.redspace.ironsspellbooks.spells.evocation.FangSwirlSpell;
+import io.redspace.ironsspellbooks.spells.evocation.FirecrackerSpell;
+import io.redspace.ironsspellbooks.spells.evocation.GustSpell;
+import io.redspace.ironsspellbooks.spells.evocation.ScapegoatSpell;
+import io.redspace.ironsspellbooks.spells.ice.RayOfFrostSpell;
+import io.redspace.ironsspellbooks.spells.lightning.ChainLightningSpell;
+import io.redspace.ironsspellbooks.spells.nature.StompSpell;
+import java.util.Set;
 import net.minecraft.resources.ResourceLocation;
 import org.bitwisemadness.abilitycore.api.MasteryAxis;
 import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
@@ -34,7 +46,11 @@ import org.bitwisemadness.abilityiss.config.IssServerConfig;
  * ({@link SpellCatalog#liveCostsFor}, rounding identically so all three
  * can never disagree); CAST_TIME on {@code getEffectiveCastTime}'s
  * return (the caster is a parameter, and the tooltip reads the same
- * method); POWER on {@code getSpellPower}'s return. DURATION stays
+ * method); POWER on {@code getSpellPower}'s return. RANGE joins for the
+ * eleven registered {@code getRange} seam spells ({@link #RANGE_SEAM}
+ * is the mixin coverage): every read of that number - the cast's ray,
+ * the tooltip's number, the pre-cast reach check - returns through a
+ * RangeMastery wrap with the caller's own entity. DURATION stays
  * undeclared: no caster-scoped duration seam exists yet (filed).
  * {@code docs/spell-inventory.md} categorises all 113 spells by
  * activation and effect family - the basis for these choices.</p>
@@ -46,6 +62,29 @@ public final class SpellMastery {
 
     /** The gain handler's name (registered once; resolves at first award). */
     public static final String GAIN_HANDLER = "ability_iss:spell_xp";
+
+    /**
+     * The spells whose class carries ISS's getRange seam - EXACTLY the
+     * eleven registered classes the RangeMastery mixins target (one
+     * return-wrap each, plus RayOfSiphoning's two call-site wraps;
+     * ISS's SoulfireRaySpell ships getRange but is never registered, so
+     * it has no spec to declare). This set is the mixin coverage
+     * contract: a class listed here without a mixin would show a pane
+     * bonus nothing applies, a mixin without the declaration reads
+     * inert. The gametest pins both directions.
+     */
+    public static final Set<Class<? extends AbstractSpell>> RANGE_SEAM = Set.of(
+            RayOfSiphoningSpell.class,
+            EldritchBlastSpell.class,
+            SonicBoomSpell.class,
+            TelekinesisSpell.class,
+            FangSwirlSpell.class,
+            FirecrackerSpell.class,
+            GustSpell.class,
+            ScapegoatSpell.class,
+            RayOfFrostSpell.class,
+            ChainLightningSpell.class,
+            StompSpell.class);
 
     private SpellMastery() {
     }
@@ -69,6 +108,11 @@ public final class SpellMastery {
                     .withEffect(MasteryAxis.COST)
                     .withEffect(MasteryAxis.CAST_TIME)
                     .withEffect(MasteryAxis.POWER);
+            if (RANGE_SEAM.contains(spell.getClass())) {
+                // RANGE joins only for the twelve mixin-covered spells:
+                // the pane's bonus is never a promise without a seam
+                spec = spec.withEffect(MasteryAxis.RANGE);
+            }
             ResourceLocation school = SpellCatalog.schoolOf(spell);
             if (school != null) {
                 spec = spec.withShare(MasteryTarget.category(school), SCHOOL_SHARE);
