@@ -1,6 +1,7 @@
 package org.bitwisemadness.abilityiss.config;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
+import org.bitwisemadness.abilitycore.config.ConfigDiagnostics;
 
 /**
  * ISS's server policy (the fleet audit's iss entry):
@@ -53,12 +54,35 @@ public final class IssServerConfig {
     /** XP a spell grants per successful cast (read live at award time). */
     public static final ModConfigSpec.DoubleValue SPELL_XP_GAIN =
             BUILDER.comment("XP one spell cast grants (read live when the award lands, "
-                            + "never at registration): the spell routes half to its "
-                            + "school's category mastery - packs retune the share or any "
-                            + "other spec field through core's mastery_spec datapack overlay")
+                            + "never at registration): the spell routes its school share "
+                            + "to the school's mastery ability - packs retune the share or "
+                            + "any other spec field through core's mastery_spec datapack overlay")
                     .defineInRange("mastery.spellXpGain", 10.0, 0.0, 1000000.0);
 
+    /** The share of each spell grant routed to its school's mastery ability. */
+    public static final ModConfigSpec.DoubleValue SCHOOL_SHARE =
+            BUILDER.comment("Share of every spell's mastery grant routed to its school's "
+                            + "mastery ability (0.20 = 20%). The same share weights the "
+                            + "school ability's level into that spell's aggregate - one "
+                            + "number both ways, so the school level feeds the spell's "
+                            + "mastery bonuses at the same rate it is fed. A reload "
+                            + "re-declares the shares: the config applies to the next cast")
+                    .defineInRange("mastery.schoolShare", 0.20, 0.0, 1.0);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
+
+    /**
+     * The school share, safe at any time: the shipped default until the
+     * server config loads, the file's value after. The registry-phase
+     * declaration and the config-reload re-declaration both read through
+     * here, so the declared shares can never disagree with the file.
+     *
+     * @return the share in {@code [0, 1]} (default 0.20)
+     */
+    public static double schoolShare() {
+        return ConfigDiagnostics.readOrDefault("mastery.schoolShare",
+                () -> SCHOOL_SHARE.get(), 0.20);
+    }
 
     private IssServerConfig() {
     }

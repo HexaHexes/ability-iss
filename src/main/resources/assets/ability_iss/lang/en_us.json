@@ -22,9 +22,11 @@
   "ability_iss.configuration.held": "Held scan",
   "ability_iss.configuration.held.tooltip": "What counts as holding a spell for listing and greying.",
   "ability_iss.configuration.mastery": "Mastery",
-  "ability_iss.configuration.mastery.tooltip": "Per-spell experience gained on cast; packs retune the school share through core's mastery_spec datapack overlay.",
+  "ability_iss.configuration.mastery.tooltip": "Per-spell experience gained on cast; the school share is mastery.schoolShare, packs retune any spec field through core's mastery_spec datapack overlay.",
   "ability_iss.configuration.spellXpGain": "Spell XP per cast",
   "ability_iss.configuration.spellXpGain.tooltip": "XP one spell cast grants, read live when the award lands. Default: 10.",
+  "ability_iss.configuration.schoolShare": "School share",
+  "ability_iss.configuration.schoolShare.tooltip": "Share of every spell's mastery grant routed to its school's mastery ability (0.20 = 20%); the same share weights the school's level into that spell's bonuses. A reload applies to the next cast. Default: 0.2.",
   "ability_iss.configuration.icon": "Tab icon",
   "ability_iss.configuration.icon.tooltip": "The Spells tab's icon as an item id (empty = no icon). Default: the Divine Pearl.",
   "ability_iss.configuration.sprite": "Tab sprite",
@@ -46,5 +48,14 @@
   "ability_iss.configuration.includeCurios": "Curios count as held",
   "ability_iss.configuration.includeCurios.tooltip": "Curios slots count as holding a spell. Default: on.",
   "ability_iss.configuration.includeArmor": "Armor counts as held",
-  "ability_iss.configuration.includeArmor.tooltip": "Armor slots count as holding a spell (the offhand always does). Default: on."
+  "ability_iss.configuration.includeArmor.tooltip": "Armor slots count as holding a spell (the offhand always does). Default: on.",
+  "ability_iss.mastery.blood": "Blood Mastery",
+  "ability_iss.mastery.eldritch": "Eldritch Mastery",
+  "ability_iss.mastery.ender": "Ender Mastery",
+  "ability_iss.mastery.evocation": "Evocation Mastery",
+  "ability_iss.mastery.fire": "Fire Mastery",
+  "ability_iss.mastery.holy": "Holy Mastery",
+  "ability_iss.mastery.ice": "Ice Mastery",
+  "ability_iss.mastery.lightning": "Lightning Mastery",
+  "ability_iss.mastery.nature": "Nature Mastery"
 }
