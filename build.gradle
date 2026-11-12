@@ -149,10 +149,13 @@ dependencies {
     def geckolibFileId = '8893490'        // geckolib-neoforge-1.21.1-4.9.3
     def playerAnimatorFileId = '7389814'  // player-animation-lib-forge-2.0.4+1.21.1
     def curiosFileId = '6529130'          // curios-neoforge-9.5.1+1.21.1
-    def abilityCoreVersion = '1.0.2-alpha.02'
+    def abilityCoreVersion = '1.1.0-alpha.02'
     // alpha.103: registerBarForTab (alpha.99) + LiveCosts (alpha.100) for
-    // the tab's provider strip and the pane's live costs - see the toml floor
-    def abilityHotbarVersion = '1.0.0-alpha.103'
+    // the tab's provider strip and the pane's live costs - see the toml
+    // floor. 1.0.1-alpha.05: CoreMasteryCompat.bonusesOf - the row's live
+    // quote reads the snapshot's COST discount from it (the mastery
+    // effects slice).
+    def abilityHotbarVersion = '1.0.1-alpha.05'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -209,7 +212,7 @@ tasks.register('prepareGametestMods', Sync) {
 tasks.matching { it.name == 'runGameTestServer' }.configureEach {
     dependsOn 'prepareGametestMods'
 
-    def expectedTests = 10
+    def expectedTests = 11
     doLast {
         def log = file('run/logs/latest.log')
         if (!log.exists()) {

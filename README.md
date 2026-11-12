@@ -37,9 +37,14 @@ Tensura RPG pack.
   configured XP (`mastery.spellXpGain`, server config, read live at
   award time) and routes half of it to its school's category mastery,
   through core's opt-in declarations. Packs retune the share or any other
-  spec field through core's `mastery_spec` datapack overlay. The COST
-  effect axis is deliberately undeclared until ISS's player-less
-  `getManaCost` gains a caster-aware seam (issue #28).
+  spec field through core's `mastery_spec` datapack overlay. **Mastery
+  improves the spells**: every spell declares COST, CAST_TIME and POWER
+  on core's default curve - the discount bites at the affordability bar,
+  the posted cast charge and the row quote (rounded identically, so they
+  can never disagree), the cast time at `getEffectiveCastTime`, the power
+  at `getSpellPower`. `docs/spell-inventory.md` categorises all 113
+  spells by activation and effect family (issue #28 closed by these
+  seams; DURATION stays undeclared - no caster-scoped seam exists yet).
 - **The bar tracks the book**: content re-seeds on login, whenever the
   book's spells change (inscription), and whenever the spellbook is
   equipped or unequipped - per slot, so a removed spell clears its own cell

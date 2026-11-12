@@ -1,8 +1,10 @@
 package org.bitwisemadness.abilityiss.gametest;
 
 import com.mojang.authlib.GameProfile;
+import io.redspace.ironsspellbooks.api.events.SpellOnCastEvent;
 import io.redspace.ironsspellbooks.api.registry.SpellRegistry;
 import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
+import io.redspace.ironsspellbooks.api.spells.CastType;
 import io.redspace.ironsspellbooks.api.spells.ISpellContainer;
 import io.redspace.ironsspellbooks.compat.Curios;
 import java.util.UUID;
@@ -29,7 +31,10 @@ import org.bitwisemadness.abilitycore.api.ActivationSource;
 import org.bitwisemadness.abilitycore.api.ActivationType;
 import org.bitwisemadness.abilitycore.api.AvailabilityState;
 import org.bitwisemadness.abilitycore.api.CooldownOwners;
+import org.bitwisemadness.abilitycore.api.MasteryAwards;
+import org.bitwisemadness.abilitycore.api.MasteryAxis;
 import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
+import org.bitwisemadness.abilitycore.api.MasteryEffects;
 import org.bitwisemadness.abilitycore.api.MasteryGainHandlers;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
@@ -493,8 +498,9 @@ public final class IssHotbarGameTests {
                     "the static base is the handler's fail-closed fallback: " + id);
             check(spec.triggers().equals(java.util.Set.of(MasteryTrigger.ACTIVATION)),
                     "casts grant; nothing else is declared yet: " + id);
-            check(spec.effects().isEmpty(),
-                    "no COST effect until ISS's cost read gains a player-aware seam: " + id);
+            check(spec.effects().keySet().equals(java.util.Set.of(
+                            MasteryAxis.COST, MasteryAxis.CAST_TIME, MasteryAxis.POWER)),
+                    "every spell declares the three implemented effect axes: " + id);
             check(spec.shares().size() <= 1, "at most one school per spell: " + id);
             for (var share : spec.shares()) {
                 check(share.target().kind() == MasteryTarget.Kind.CATEGORY,
@@ -606,5 +612,131 @@ public final class IssHotbarGameTests {
             String message) {
         check(actual.isPresent() && Math.abs(actual.get() - expected) < 1e-9,
                 message + ", got " + actual);
+    }
+
+    /**
+     * Mastery improves the spells (REQ-CORE-12, closing #28): every spec
+     * declares COST/CAST_TIME/POWER, so a mastered player casts the same
+     * spell faster, stronger and - at the very same mana - cheaper at the
+     * bar than a fresh one. The three seams are asserted directly against
+     * their methods (no full cast chain needed), each with the fresh
+     * player as the native-bar control, and the posted cast event's
+     * charge lands on the same rounded discount the check and the row
+     * quote use.
+     */
+    @GameTest(template = "empty")
+    public static void masteryEffectsImproveTheSpell(GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+        ServerPlayer mastered = mockPlayer(helper);
+        ServerPlayer fresh = mockPlayer(helper);
+        // the raw mock arrives creative - the mana gate skips creatives
+        // (CREATIVE_MANA_COST off), which would make both halves of the
+        // bar assertion vacuous: pin survival so only the price decides
+        fresh.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        mastered.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+
+        // a LONG spell with a real mana price that a mock can gate through
+        // (non-targeted: checkPreCastConditions' target helper refuses
+        // targeted spells without a world target)
+        ResourceLocation spellId = null;
+        AbstractSpell spell = null;
+        StringBuilder refusals = new StringBuilder();
+        for (ResourceLocation candidate : registered) {
+            AbstractSpell s = SpellRegistry.REGISTRY.getOptional(
+                    net.minecraft.resources.ResourceKey.create(
+                            SpellRegistry.SPELL_REGISTRY_KEY, candidate)).orElse(null);
+            if (s == null || s.getCastType() != CastType.LONG || s.getManaCost(1) < 30) {
+                continue;
+            }
+            var masteredData = io.redspace.ironsspellbooks.api.magic.MagicData
+                    .getPlayerMagicData(mastered);
+            var freshData = io.redspace.ironsspellbooks.api.magic.MagicData
+                    .getPlayerMagicData(fresh);
+            masteredData.setMana(9999.0f);
+            freshData.setMana(9999.0f);
+            masteredData.getSyncedData().learnSpell(s);
+            freshData.getSyncedData().learnSpell(s);
+            if (!s.checkPreCastConditions(mastered.level(), 1, mastered, masteredData)) {
+                refusals.append(candidate).append("=pre; ");
+                continue;
+            }
+            if (!s.canBeCastedBy(1, io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                    masteredData, mastered).isSuccess()) {
+                refusals.append(candidate).append("=gate; ");
+                continue;
+            }
+            spellId = candidate;
+            spell = s;
+            break;
+        }
+        if (spellId == null || spell == null) {
+            throw new net.minecraft.gametest.framework.GameTestAssertException(
+                    "no LONG mock-cooperative spell found; refusals: " + refusals);
+        }
+
+        // the fresh player's native numbers (the control for every seam)
+        int baseTime = spell.getEffectiveCastTime(1, fresh);
+        check(baseTime > 0, "the chosen spell must have cast time to cut, got " + baseTime);
+        float basePower = spell.getSpellPower(1, fresh);
+        int baseMana = spell.getManaCost(1);
+
+        // grant mastery as a raw pool (skips the gain handler: the seams
+        // only need an aggregate level above zero)
+        MasteryAwards.award(mastered, spellId, MasteryTrigger.ACTIVATION, 1000.0);
+
+        // CAST_TIME: strictly faster
+        int fastTime = spell.getEffectiveCastTime(1, mastered);
+        check(fastTime < baseTime,
+                "mastery must cut the cast time, got " + fastTime + " vs " + baseTime);
+
+        // POWER: strictly stronger
+        float strongPower = spell.getSpellPower(1, mastered);
+        check(strongPower > basePower,
+                "mastery must raise the spell power, got " + strongPower + " vs " + basePower);
+
+        // COST at the check: one below the native bar, only the mastered passes
+        var masteredData = io.redspace.ironsspellbooks.api.magic.MagicData
+                .getPlayerMagicData(mastered);
+        var freshData = io.redspace.ironsspellbooks.api.magic.MagicData
+                .getPlayerMagicData(fresh);
+        masteredData.setMana(baseMana - 1);
+        freshData.setMana(baseMana - 1);
+        boolean freshPasses = spell.canBeCastedBy(1,
+                io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                freshData, fresh).isSuccess();
+        check(!freshPasses,
+                "the fresh player must be refused a bar they cannot pay natively"
+                        + " (mana=" + freshData.getMana()
+                        + " cost=" + spell.getManaCost(1)
+                        + " mult=" + MasteryEffects.costMultiplier(fresh, spellId)
+                        + " recast=" + freshData.getPlayerRecasts()
+                                .hasRecastForSpell(spell.getSpellId())
+                        + " creative=" + fresh.isCreative()
+                        + " consumes=" + io.redspace.ironsspellbooks.api.spells.CastSource
+                                .SPELLBOOK.consumesMana() + ")");
+        check(spell.canBeCastedBy(1, io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                        masteredData, mastered).isSuccess(),
+                "the mastered player must pass the discounted bar at the same mana");
+
+        // COST at the charge: the posted event lands on the same discount
+        var freshEvent = new SpellOnCastEvent(fresh, spellId.toString(), 1, baseMana,
+                spell.getSchoolType(),
+                io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK);
+        NeoForge.EVENT_BUS.post(freshEvent);
+        check(freshEvent.getManaCost() == baseMana,
+                "the fresh charge must stay native, got " + freshEvent.getManaCost());
+        var masteredEvent = new SpellOnCastEvent(mastered, spellId.toString(), 1, baseMana,
+                spell.getSchoolType(),
+                io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK);
+        NeoForge.EVENT_BUS.post(masteredEvent);
+        int expectedCharge = (int) Math.round((double) baseMana
+                * MasteryEffects.costMultiplier(mastered, spellId));
+        check(masteredEvent.getManaCost() == expectedCharge,
+                "the mastered charge must be the discounted bar, got "
+                        + masteredEvent.getManaCost() + " expected " + expectedCharge);
+        check(masteredEvent.getManaCost() < baseMana,
+                "and strictly below the native price");
+        helper.succeed();
     }
 }
