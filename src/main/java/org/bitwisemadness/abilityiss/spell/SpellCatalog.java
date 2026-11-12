@@ -1,13 +1,21 @@
 package org.bitwisemadness.abilityiss.spell;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.mojang.logging.LogUtils;
 import io.github.manasmods.manascore.config.ConfigRegistry;
 import io.github.manasmods.manascore.config.api.ManasConfig;
 import io.redspace.ironsspellbooks.api.registry.SchoolRegistry;
 import io.redspace.ironsspellbooks.api.registry.SpellRegistry;
 import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import io.redspace.ironsspellbooks.api.spells.CastType;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +32,7 @@ import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
 import org.bitwisemadness.abilityhotbar.client.LiveCosts;
 import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 /**
  * Every ISS spell as a menu-listed ability (owner's tab brief: the tab
@@ -49,7 +58,16 @@ public final class SpellCatalog {
     public static final ResourceLocation CATEGORY =
             ResourceLocation.fromNamespaceAndPath("ability_iss", "spell");
 
+    /** The bundled iron.wiki prose (classpath; no runtime HTTP). */
+    private static final String DESCRIPTIONS_RESOURCE =
+            "/assets/ability_iss/spell_descriptions.json";
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+
     private static final List<ResourceLocation> REGISTERED = new ArrayList<>();
+
+    /** Loaded once per JVM at the first definition that asks. */
+    private static volatile Map<String, String> descriptions;
 
     private SpellCatalog() {
     }
@@ -88,7 +106,61 @@ public final class SpellCatalog {
         }
     }
 
-    /** One spell's menu definition: ISS's name/icon, cast shape, mana quote. */
+    /**
+     * The bundled spell descriptions (owner's iron.wiki brief): the
+     * classpath JSON's id -> prose map, parsed once - no runtime HTTP.
+     * A missing or malformed resource degrades to "no descriptions"
+     * (logged once), never a registration failure, and {@code _}-prefixed
+     * provenance keys are metadata, never spell entries.
+     *
+     * @return an immutable id -> prose map (empty when unavailable)
+     */
+    static Map<String, String> descriptions() {
+        Map<String, String> loaded = descriptions;
+        if (loaded != null) {
+            return loaded;
+        }
+        synchronized (SpellCatalog.class) {
+            if (descriptions == null) {
+                descriptions = loadDescriptions();
+            }
+            return descriptions;
+        }
+    }
+
+    private static Map<String, String> loadDescriptions() {
+        try (InputStream in = SpellCatalog.class.getResourceAsStream(DESCRIPTIONS_RESOURCE)) {
+            if (in == null) {
+                LOGGER.error("bundled spell descriptions missing at {} - the pane shows "
+                        + "spells without prose", DESCRIPTIONS_RESOURCE);
+                return Map.of();
+            }
+            JsonObject root = JsonParser.parseReader(
+                    new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
+            Map<String, String> out = new HashMap<>();
+            for (var entry : root.entrySet()) {
+                String key = entry.getKey();
+                if (key.isEmpty() || key.charAt(0) == '_') {
+                    continue; // provenance metadata, not a spell
+                }
+                try {
+                    String prose = entry.getValue().getAsString();
+                    if (!prose.isBlank()) {
+                        out.put(key, prose);
+                    }
+                } catch (RuntimeException badValue) {
+                    LOGGER.error("bundled description for {} is not text - skipped", key);
+                }
+            }
+            return Map.copyOf(out);
+        } catch (IOException | RuntimeException failure) {
+            LOGGER.error("bundled spell descriptions failed to read - the pane shows "
+                    + "spells without prose", failure);
+            return Map.of();
+        }
+    }
+
+    /** One spell's menu definition: ISS's name/icon, cast shape, mana quote, bundled description. */
     static AbilityDefinition definitionFor(ResourceLocation spellId, AbstractSpell spell) {
         Set<String> tags = new LinkedHashSet<>(2);
         tags.add("spell");
@@ -96,6 +168,7 @@ public final class SpellCatalog {
         if (school != null) {
             tags.add(school);
         }
+        String description = descriptions().get(spellId.toString());
         return new AbilityDefinition(
                 nameKey(spellId),
                 spell.getSpellIconResource(),
@@ -105,7 +178,10 @@ public final class SpellCatalog {
                 ConsumptionStrategies.ALL,
                 AmountResolvers.STATIC,
                 Set.copyOf(tags),
-                Map.of()); // ISS ships no per-spell description keys - the pane skips the section
+                // the formal description slot (core#119): the bundled
+                // iron.wiki prose when the page has the spell, absent
+                // otherwise - the pane skips a section it cannot fill
+                description == null ? Map.of() : Map.of("description", description));
     }
 
     /**
