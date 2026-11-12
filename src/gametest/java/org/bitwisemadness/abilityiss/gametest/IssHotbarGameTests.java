@@ -416,8 +416,9 @@ public final class IssHotbarGameTests {
      * spell, built against the POPULATED registry (the ability-tensura
      * registration-timing pattern), every activation shape a real
      * vocabulary value, every declared cost an honest mana quote, the
-     * school strip ordered from ISS's schools, and the unknown context
-     * never hiding a spell (visibility's never-guess).
+     * school strip ordered from ISS's schools, the unknown context
+     * never hiding a spell (visibility's never-guess), and the bundled
+     * iron.wiki description riding every spell the page has.
      */
     @GameTest(template = "empty")
     public static void spellCatalogRegistersEveryIssSpell(GameTestHelper helper) {
@@ -428,6 +429,7 @@ public final class IssHotbarGameTests {
                 "every ISS spell must register exactly once (registered="
                         + registered.size() + " of " + live + ")");
         java.util.Set<String> schools = new java.util.HashSet<>();
+        int withDescription = 0;
         // the pane's live-cost answer (hotbar#193): a decoy baked list
         // makes an undeclared spell quote itself, so the loop below can
         // tell a real declaration from its absence
@@ -447,6 +449,15 @@ public final class IssHotbarGameTests {
             check(definition != null, "definition must resolve: " + id);
             check(definition.activationType() != ActivationType.UNKNOWN,
                     "a spell's cast shape must map to the vocabulary: " + id);
+            if (definition.description().isPresent()) {
+                withDescription++;
+            }
+            if ("acupuncture".equals(id.getPath())) {
+                check(definition.description()
+                                .map(prose -> prose.contains("blood needles"))
+                                .orElse(false),
+                        "the bundled iron.wiki prose must ride acupuncture's definition");
+            }
             definition.tags().stream().filter(tag -> tag.startsWith("type:"))
                     .forEach(schools::add);
             for (org.bitwisemadness.abilitycore.api.ResourceCost cost : definition.costs()) {
@@ -464,6 +475,9 @@ public final class IssHotbarGameTests {
         check(schools.size() > 1,
                 "schools must be per-spell, not one default (owner saw all "
                         + "Evocation): " + schools);
+        check(withDescription >= 100,
+                "the bundled iron.wiki prose must ride most definitions, got "
+                        + withDescription);
         check(MenuTabs.barForTab(SpellMenuTab.TAB_ID)
                         .filter(SpellbookBarBridge.CURIO_BAR::equals)
                         .isPresent(),
