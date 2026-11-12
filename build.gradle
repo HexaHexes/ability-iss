@@ -154,8 +154,9 @@ dependencies {
     // the tab's provider strip and the pane's live costs - see the toml
     // floor. 1.0.1-alpha.05: CoreMasteryCompat.bonusesOf - the row's live
     // quote reads the snapshot's COST discount from it (the mastery
-    // effects slice).
-    def abilityHotbarVersion = '1.0.1-alpha.05'
+    // effects slice). 1.0.1-alpha.06: the slotName hook - the menu's
+    // provider pill shows each spell's name beside its icon.
+    def abilityHotbarVersion = '1.0.1-alpha.06'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'

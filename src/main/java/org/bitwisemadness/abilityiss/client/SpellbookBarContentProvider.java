@@ -8,6 +8,7 @@ import io.redspace.ironsspellbooks.capabilities.magic.CooldownInstance;
 import io.redspace.ironsspellbooks.capabilities.magic.PlayerCooldowns;
 import io.redspace.ironsspellbooks.player.ClientMagicData;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -34,6 +35,13 @@ import org.jetbrains.annotations.Nullable;
  * slots) render the hotbar's own chrome - a cell is a spell everywhere or
  * nowhere, the same predicate the server seeds by
  * ({@link SpellbookBarBridge#isSpellCell}).</p>
+ *
+ * <p><b>Cells carry their spell's name</b> (the {@code slotName} hook):
+ * the menu's slot pill shows {@link AbstractSpell#getDisplayName(Player)}
+ * beside the icon - the same localized {@code spell.<ns>.<name>}
+ * translation ISS's own screens use - so the spellbook strip reads as
+ * words, not just icons. Empty or non-spell cells ship {@code null} and
+ * their pills stay icon-only.</p>
  *
  * <p><b>Per-cell overlays</b> (the {@code availabilityFor} hook): each
  * cell's cooldown sweep and castability tint come from ISS's own
@@ -85,6 +93,19 @@ public final class SpellbookBarContentProvider implements HotbarContentProvider 
             return null;
         }
         return container.getSpellAtIndex(index).getSpell().getSpellIconResource();
+    }
+
+    @Override
+    @Nullable
+    public Component slotName(int index) {
+        var container = currentContainer();
+        if (container == null || !SpellbookBarBridge.isSpellCell(container, index)) {
+            return null;
+        }
+        // the localized spell name ISS's own screens show; getDisplayName
+        // tolerates a null player (the obfuscation check treats it as false)
+        return container.getSpellAtIndex(index).getSpell()
+                .getDisplayName(Minecraft.getInstance().player);
     }
 
     @Override

@@ -74,14 +74,14 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-# alpha.05 of the 1.0.1 line is the floor: CoreMasteryCompat.bonusesOf -
-# the row's live quote reads the snapshot's COST discount from it (the
-# mastery effects slice), so older hotbars have no discount source. It
-# also carries every API the Spells tab consumes (registerBarForTab
-# alpha.99, LiveCosts alpha.100, TabContent/informational tabs,
-# registerCategoryTabs, subCategoryIcon) - older ones never register the
-# tab's shape.
-versionRange = "[1.0.1-alpha.05,)"
+# alpha.06 of the 1.0.1 line is the floor: it carries the slotName hook
+# (the menu's provider pill shows each spell's name beside its icon) plus
+# every API the Spells tab consumes (registerBarForTab alpha.99, LiveCosts
+# alpha.100, TabContent/informational tabs, registerCategoryTabs,
+# subCategoryIcon) and CoreMasteryCompat.bonusesOf (the row's live COST
+# quote reads the snapshot's discount from it) - older hotbars never
+# register the tab's shape or show the names.
+versionRange = "[1.0.1-alpha.06,)"
 ordering = "AFTER"
 side = "BOTH"
 
