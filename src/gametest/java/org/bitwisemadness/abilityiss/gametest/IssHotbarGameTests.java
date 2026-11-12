@@ -38,6 +38,7 @@ import org.bitwisemadness.abilitycore.api.MasteryEffects;
 import org.bitwisemadness.abilitycore.api.MasteryGainHandlers;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.api.MasteryTrigger;
+import org.bitwisemadness.abilitycore.api.MasteryView;
 import org.bitwisemadness.abilitycore.api.VisibilityHandlers;
 import org.bitwisemadness.abilitycore.discovery.AbilityDiscovery;
 import org.bitwisemadness.abilitycore.mastery.MasteryAttachments;
@@ -737,6 +738,92 @@ public final class IssHotbarGameTests {
                         + masteredEvent.getManaCost() + " expected " + expectedCharge);
         check(masteredEvent.getManaCost() < baseMana,
                 "and strictly below the native price");
+        helper.succeed();
+    }
+
+    /**
+     * Mastery follows the SPELL, not the item (owner's persistence
+     * brief): keyed per registry id, the pool survives the spell
+     * leaving the book and coming back, an arcane-anvil level upgrade
+     * (ISS rewrites the container's SpellData level in place), and a
+     * second physical book holding the same spell reads and grows the
+     * very same pool - two copies can never diverge.
+     */
+    @GameTest(template = "empty")
+    public static void masteryIsPerSpellNotPerInstance(GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+        ServerPlayer player = mockPlayer(helper);
+
+        AbstractSpell spell = SpellRegistry.ACUPUNCTURE_SPELL.get();
+        ResourceLocation spellId = SpellRegistry.REGISTRY.getKey(spell);
+        check(spellId != null, "the fixture spell must resolve to a registry id");
+
+        // the config-live gain, routed the way every cast routes it
+        double gain = IssServerConfig.SPELL_XP_GAIN.get();
+        boolean hasSchool = SpellCatalog.schoolOf(spell) != null;
+        double perCast = hasSchool ? gain * (1.0 - SpellMastery.SCHOOL_SHARE) : gain;
+        check(perCast > 0.0, "the fixture gain must be positive, got " + perCast);
+        var data = MasteryAttachments.data(player);
+
+        // book A holds the spell; a cast's grant lands on the spell's id
+        ItemStack bookA = spellBookWith(helper, 1, 4);
+        equipSpellbook(player, bookA);
+        MasteryAwards.award(player, spellId, MasteryTrigger.ACTIVATION);
+        double own = data.xp(MasteryTarget.ability(spellId).key());
+        check(Math.abs(own - perCast) < 1e-9,
+                "the first cast must land the routed gain, got " + own);
+
+        // (1) the spell leaves the book: nothing may touch the pool
+        var mutable = ISpellContainer.get(bookA).mutableCopy();
+        check(mutable.removeSpell(spell), "the fixture spell must be removable");
+        ISpellContainer.set(bookA, mutable.toImmutable());
+        check(ISpellContainer.get(bookA).getActiveSpellCount() == 0,
+                "the book must really be empty now");
+        check(Math.abs(data.xp(MasteryTarget.ability(spellId).key()) - own) < 1e-9,
+                "removing the spell from the book must not touch its mastery");
+
+        // (2) ... and placed back: the same pool answers
+        mutable = ISpellContainer.get(bookA).mutableCopy();
+        check(mutable.addSpell(spell, 1, false), "the spell must be re-addable");
+        ISpellContainer.set(bookA, mutable.toImmutable());
+        check(Math.abs(data.xp(MasteryTarget.ability(spellId).key()) - own) < 1e-9,
+                "re-adding the spell must find its old mastery");
+
+        // (3) the arcane anvil's upgrade (level 1 -> 2 in the container):
+        // the pool is untouched and the next cast grants the SAME gain -
+        // the handler is config-flat, a level never scales the award
+        mutable = ISpellContainer.get(bookA).mutableCopy();
+        check(mutable.removeSpell(spell), "the spell must lift out for the anvil");
+        check(mutable.addSpell(spell, 2, false), "the upgraded spell must fit");
+        ISpellContainer.set(bookA, mutable.toImmutable());
+        int idx = ISpellContainer.get(bookA).getIndexForSpell(spell);
+        check(idx >= 0 && ISpellContainer.get(bookA).getSpellAtIndex(idx).getLevel() == 2,
+                "the anvil's level upgrade must really land in the container");
+        check(Math.abs(data.xp(MasteryTarget.ability(spellId).key()) - own) < 1e-9,
+                "the level upgrade must not touch its mastery");
+        MasteryAwards.award(player, spellId, MasteryTrigger.ACTIVATION);
+        double afterSecond = data.xp(MasteryTarget.ability(spellId).key());
+        check(Math.abs(afterSecond - own - perCast) < 1e-9,
+                "the upgraded spell must still grant exactly the config gain, got "
+                        + afterSecond);
+
+        // (4) a SECOND physical book with the same spell: one id, one pool -
+        // what book A's copy grew is what book B's copy reads
+        ItemStack bookB = spellBookWith(helper, 1, 4);
+        equipSpellbook(player, bookB);
+        check(Math.abs(data.xp(MasteryTarget.ability(spellId).key()) - afterSecond) < 1e-9,
+                "two books holding the same spell must share one mastery pool");
+        MasteryAwards.award(player, spellId, MasteryTrigger.ACTIVATION);
+        double afterThird = data.xp(MasteryTarget.ability(spellId).key());
+        check(Math.abs(afterThird - afterSecond - perCast) < 1e-9,
+                "a cast through the second copy must grow the same pool, got "
+                        + afterThird);
+
+        // the player-facing view reads that identical pool
+        var view = MasteryView.of(player, spellId);
+        check(Math.abs(view.ownXp() - afterThird) < 1e-9,
+                "the mastery view must read the same pool, got " + view.ownXp());
         helper.succeed();
     }
 }
