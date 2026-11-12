@@ -24,10 +24,13 @@ reviewable against its class.
 | CAST_TIME | the 64 LONG/CONTINUOUS spells (INSTANT = 0 ticks, no-op) | getEffectiveCastTime return |
 | POWER | every spell (damage/heal scaling reads getSpellPower) | getSpellPower return |
 | DURATION | buff/summon families | **deferred** - no caster-scoped duration seam exists yet (filed) |
+| RANGE | the 11 registered `getRange` seam spells (rays, beams, Gust, Telekinesis, Stomp, ...) | one return-wrap per class (mixin) + RayOfSiphoning's two call-site wraps - every read of that number moves together (`SoulfireRaySpell` ships a getRange but is unregistered, so it has no spec) |
 
-All three implemented axes are declared on every spell spec with core's default
-curve (server config: mastery.costReductionPerLevel etc.); packs retune or
-restrict them per spell through core's mastery_spec overlay.
+The three universal axes are declared on every spell spec with core's default
+curve (server config: mastery.costReductionPerLevel etc.); RANGE joins only
+for `SpellMastery.RANGE_SEAM` - the exact mixin coverage, so the pane's bonus
+is never a promise without a seam. Packs retune or restrict them per spell
+through core's mastery_spec overlay.
 
 ## Inventory
 

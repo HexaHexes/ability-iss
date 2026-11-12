@@ -13,6 +13,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestAssertException;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ClientInformation;
@@ -513,9 +514,18 @@ public final class IssHotbarGameTests {
                     "the static base is the handler's fail-closed fallback: " + id);
             check(spec.triggers().equals(java.util.Set.of(MasteryTrigger.ACTIVATION)),
                     "casts grant; nothing else is declared yet: " + id);
-            check(spec.effects().keySet().equals(java.util.Set.of(
-                            MasteryAxis.COST, MasteryAxis.CAST_TIME, MasteryAxis.POWER)),
-                    "every spell declares the three implemented effect axes: " + id);
+            java.util.Set<MasteryAxis> expectedAxes = new java.util.HashSet<>(
+                    java.util.List.of(MasteryAxis.COST, MasteryAxis.CAST_TIME,
+                            MasteryAxis.POWER));
+            var instance = SpellRegistry.REGISTRY.getOptional(
+                    net.minecraft.resources.ResourceKey.create(
+                            SpellRegistry.SPELL_REGISTRY_KEY, id)).orElse(null);
+            if (instance != null && SpellMastery.RANGE_SEAM.contains(instance.getClass())) {
+                expectedAxes.add(MasteryAxis.RANGE);
+            }
+            check(spec.effects().keySet().equals(expectedAxes),
+                    "every spell declares exactly its axes (RANGE only on the seam "
+                            + "spells): " + id + " got " + spec.effects().keySet());
             check(spec.shares().size() <= 1, "at most one school per spell: " + id);
             for (var share : spec.shares()) {
                 check(share.target().kind() == MasteryTarget.Kind.CATEGORY,
@@ -697,8 +707,9 @@ public final class IssHotbarGameTests {
         int baseMana = spell.getManaCost(1);
 
         // grant mastery as a raw pool (skips the gain handler: the seams
-        // only need an aggregate level above zero)
-        MasteryAwards.award(mastered, spellId, MasteryTrigger.ACTIVATION, 1000.0);
+        // only need an aggregate level above zero - and the flat-step
+        // curve needs enough XP for the ROUNDED cast-time cut to show)
+        MasteryAwards.award(mastered, spellId, MasteryTrigger.ACTIVATION, 100_000.0);
 
         // CAST_TIME: strictly faster
         int fastTime = spell.getEffectiveCastTime(1, mastered);
@@ -839,5 +850,256 @@ public final class IssHotbarGameTests {
         check(Math.abs(view.ownXp() - afterThird) < 1e-9,
                 "the mastery view must read the same pool, got " + view.ownXp());
         helper.succeed();
+    }
+
+    /**
+     * The RANGE seam's declaration contract (owner's range brief):
+     * exactly the twelve getRange classes declare the axis - the set IS
+     * the mixin coverage, so the pane never shows a bonus nothing
+     * applies - and the public seams answer a strictly larger number
+     * for a mastered caster than a fresh one: the return-wrap moving
+     * for real, a fresh caster reading raw.
+     */
+    @GameTest(template = "empty")
+    public static void rangeSeamDeclaresOnlyWhereItApplies(GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+        int declared = 0;
+        for (ResourceLocation id : registered) {
+            AbstractSpell spell = SpellRegistry.REGISTRY.getOptional(
+                    net.minecraft.resources.ResourceKey.create(
+                            SpellRegistry.SPELL_REGISTRY_KEY, id)).orElse(null);
+            check(spell != null, "every registered id resolves: " + id);
+            boolean declares = MasteryDeclarations.get(id)
+                    .map(spec -> spec.effects().containsKey(MasteryAxis.RANGE))
+                    .orElse(false);
+            boolean seam = SpellMastery.RANGE_SEAM.contains(spell.getClass());
+            check(declares == seam,
+                    "RANGE declared exactly for the seam spells: " + id
+                            + " declared=" + declares + " seam=" + seam);
+            if (declares) {
+                declared++;
+            }
+        }
+        check(declared == 11 && SpellMastery.RANGE_SEAM.size() == 11,
+                "the eleven registered seam spells declare RANGE, got " + declared
+                        + " (set size " + SpellMastery.RANGE_SEAM.size() + ")");
+
+        // the public seams, called directly: mastery moves the number
+        ServerPlayer fresh = mockPlayer(helper);
+        ServerPlayer mastered = mockPlayer(helper);
+        ResourceLocation frostId = SpellRegistry.REGISTRY.stream()
+                .filter(s -> s instanceof io.redspace.ironsspellbooks.spells.ice.RayOfFrostSpell)
+                .map(s -> SpellRegistry.REGISTRY.getKey(s))
+                .filter(java.util.Objects::nonNull)
+                .findFirst()
+                .orElseThrow(() -> new GameTestAssertException(
+                        "ISS must stage RayOfFrostSpell for the seam probe"));
+        MasteryAwards.award(mastered, frostId, MasteryTrigger.ACTIVATION, 1_000_000.0);
+        float freshFrost = io.redspace.ironsspellbooks.spells.ice.RayOfFrostSpell
+                .getRange(1, fresh);
+        float masteredFrost = io.redspace.ironsspellbooks.spells.ice.RayOfFrostSpell
+                .getRange(1, mastered);
+        check(masteredFrost > freshFrost,
+                "the mastered ray must reach farther: fresh " + freshFrost
+                        + " vs mastered " + masteredFrost);
+
+        // the instance seam moves too (the non-static mixin shape)
+        var gust = (io.redspace.ironsspellbooks.spells.evocation.GustSpell)
+                SpellRegistry.REGISTRY.stream()
+                        .filter(s -> s instanceof io.redspace.ironsspellbooks.spells
+                                .evocation.GustSpell)
+                        .findFirst()
+                        .orElseThrow(() -> new GameTestAssertException(
+                                "ISS must stage GustSpell for the seam probe"));
+        ResourceLocation gustId = SpellRegistry.REGISTRY.getKey(gust);
+        MasteryAwards.award(mastered, gustId, MasteryTrigger.ACTIVATION, 1_000_000.0);
+        check(gust.getRange(1, mastered) > gust.getRange(1, fresh),
+                "the mastered gust must reach farther: fresh "
+                        + gust.getRange(1, fresh) + " vs mastered "
+                        + gust.getRange(1, mastered));
+        helper.succeed();
+    }
+
+    /**
+     * The RANGE seam end to end (owner's range brief): a mastered
+     * caster's RAY reaches past the raw getRange - an armor stand at
+     * the midpoint between raw and boosted is missed by a fresh cast
+     * and hit by a mastered one - and the tooltip's range number moves
+     * with it (the same getRange read, the same wrap).
+     */
+    @GameTest(template = "empty")
+    public static void rangeMasteryExtendsTheRayCastAndTooltip(GameTestHelper helper) {
+        ServerPlayer fresh = mockPlayer(helper);
+        ServerPlayer mastered = mockPlayer(helper);
+        // separate lanes so the two rays can never share a stand
+        mastered.setPos(fresh.getX(), fresh.getY(), fresh.getZ() + 24.0);
+        var spell = (io.redspace.ironsspellbooks.spells.blood.RayOfSiphoningSpell)
+                SpellRegistry.REGISTRY.stream()
+                        .filter(s -> s instanceof io.redspace.ironsspellbooks.spells
+                                .blood.RayOfSiphoningSpell)
+                        .findFirst()
+                        .orElseThrow(() -> new GameTestAssertException(
+                                "ISS must stage RayOfSiphoningSpell for the ray probe"));
+        ResourceLocation spellId = SpellRegistry.REGISTRY.getKey(spell);
+        MasteryAwards.award(mastered, spellId, MasteryTrigger.ACTIVATION, 1_000_000.0);
+        double multiplier = MasteryEffects.rangeMultiplier(mastered, spellId);
+        check(multiplier > 1.0,
+                "the mastered range multiplier must move, got " + multiplier);
+
+        float raw = io.redspace.ironsspellbooks.spells.blood.RayOfSiphoningSpell
+                .getRange(1);
+        // the midpoint: beyond the raw ray, inside the boosted one
+        double reach = raw * (1.0 + multiplier) / 2.0;
+        check(reach > raw && reach < raw * multiplier,
+                "the midpoint must split the raw and boosted rays");
+
+        // the fresh lane: the raw ray falls short of the probe
+        var freshLane = clearLane(fresh, reach);
+        var shortStand = placeRayProbe(fresh, reach, freshLane);
+        spell.onCast(fresh.level(), 1, fresh,
+                io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                io.redspace.ironsspellbooks.api.magic.MagicData.getPlayerMagicData(fresh));
+        check(shortStand.getHealth() >= shortStand.getMaxHealth(),
+                "the raw ray must fall short of " + reach + ", probe health "
+                        + shortStand.getHealth());
+
+        // the mastered lane: the boosted ray reaches the same distance
+        var masteredLane = clearLane(mastered, reach);
+        var longStand = placeRayProbe(mastered, reach, masteredLane);
+        spell.onCast(mastered.level(), 1, mastered,
+                io.redspace.ironsspellbooks.api.spells.CastSource.SPELLBOOK,
+                io.redspace.ironsspellbooks.api.magic.MagicData.getPlayerMagicData(mastered));
+        if (longStand.getHealth() >= longStand.getMaxHealth()) {
+            throw new GameTestAssertException("the boosted ray must reach " + reach
+                    + " | " + rayDiagnosis(mastered, longStand, spell, raw, multiplier));
+        }
+
+        // the tooltip reads the same wrap: its distance line carries the range
+        double freshShown = rangeShown(spell.getUniqueInfo(1, fresh));
+        double masteredShown = rangeShown(spell.getUniqueInfo(1, mastered));
+        check(masteredShown > freshShown,
+                "the tooltip must show the boosted range, fresh " + freshShown
+                        + " vs mastered " + masteredShown);
+        helper.succeed();
+    }
+
+    /**
+     * A clear horizontal ray lane from the caster (the gametest world
+     * may carry terrain: the spell clips blocks before entities), with
+     * the caster turned to face it. Fails loudly when every direction
+     * is obstructed - the probe never guesses through a wall.
+     */
+    private static net.minecraft.core.Direction clearLane(ServerPlayer caster, double reach) {
+        net.minecraft.world.phys.Vec3 eye = caster.getEyePosition();
+        for (var direction : new net.minecraft.core.Direction[]{
+                net.minecraft.core.Direction.EAST, net.minecraft.core.Direction.WEST,
+                net.minecraft.core.Direction.SOUTH, net.minecraft.core.Direction.NORTH}) {
+            var end = eye.add(direction.getStepX() * reach, 0.0, direction.getStepZ() * reach);
+            var clip = caster.level().clip(new net.minecraft.world.level.ClipContext(
+                    eye, end, net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                    net.minecraft.world.level.ClipContext.Fluid.NONE, caster));
+            if (clip.getType() == net.minecraft.world.phys.HitResult.Type.MISS) {
+                caster.setYRot(yawFacing(direction));
+                caster.setXRot(0.0F);
+                return direction;
+            }
+        }
+        throw new GameTestAssertException("no clear ray lane from the caster at "
+                + caster.position() + " - the probe cannot guess through terrain");
+    }
+
+    /** The yaw that faces a horizontal direction (MC: 0 = +Z, -90 = +X). */
+    private static float yawFacing(net.minecraft.core.Direction direction) {
+        return switch (direction) {
+            case EAST -> -90.0F;
+            case WEST -> 90.0F;
+            case SOUTH -> 0.0F;
+            default -> 180.0F;
+        };
+    }
+
+    /**
+     * Everything the ray did, for the failure message: the eye, the
+     * forward the spell scales, where the boosted ray ends, whether the
+     * stand's box clips that segment, which entities sit in the search
+     * box, and direct probes of the post-hit damage chain (power, the
+     * hit gates, a hand-placed applyDamage) - one run pinpoints the
+     * broken link.
+     */
+    private static String rayDiagnosis(ServerPlayer caster,
+            net.minecraft.world.entity.LivingEntity stand,
+            AbstractSpell spell, float raw, double multiplier) {
+        net.minecraft.world.phys.Vec3 eye = caster.getEyePosition();
+        net.minecraft.world.phys.Vec3 forward = caster.getForward();
+        net.minecraft.world.phys.Vec3 end = eye.add(forward.scale(raw * multiplier));
+        var standClip = stand.getBoundingBox().inflate(0.15).clip(eye, end);
+        var box = caster.getBoundingBox().expandTowards(end.subtract(eye));
+        var found = caster.level().getEntities(caster, box, e -> true).stream()
+                .map(e -> e.getClass().getSimpleName()).toList();
+        // direct probes: a hand-placed mob damaged with a flat 1.0
+        var probe = net.minecraft.world.entity.EntityType.ZOMBIE.create(caster.level());
+        if (probe == null) {
+            return "probe zombie failed to construct";
+        }
+        probe.setPos(caster.getX(), caster.getY(), caster.getZ() - 3.0);
+        caster.level().addFreshEntity(probe);
+        float resist = io.redspace.ironsspellbooks.damage.DamageSources
+                .getResist(probe, spell.getSchoolType());
+        boolean direct = io.redspace.ironsspellbooks.damage.DamageSources.applyDamage(
+                probe, 1.0f, spell.getDamageSource(caster));
+        float afterDirect = probe.getHealth();
+        boolean rawHurt = probe.hurt(spell.getDamageSource(caster), 1.0f);
+        float afterHurt = probe.getHealth();
+        return "eye=" + eye + " forward=" + forward + " end=" + end
+                + " standBox=" + stand.getBoundingBox()
+                + " segmentClip=" + standClip
+                + " entitiesInBox=" + found
+                + " standHealth=" + stand.getHealth()
+                + " multiplier=" + multiplier
+                + " yaw=" + caster.getYRot() + " pitch=" + caster.getXRot()
+                + " | power=" + spell.getSpellPower(1, caster)
+                + " pickable=" + stand.isPickable()
+                + " canBeHit=" + stand.canBeHitByProjectile()
+                + " resist=" + resist
+                + " directApply=" + direct + " afterDirect=" + afterDirect
+                + " rawHurt=" + rawHurt + " afterHurt=" + afterHurt;
+    }
+
+    /**
+     * A living probe at {@code reach} down the caster's clear lane. A
+     * ZOMBIE, not an armor stand: vanilla armor stands refuse every
+     * damage source outside the CAN_BREAK_ARMOR_STAND tag, and ISS's
+     * spell damage is not in it (ArmorStand.hurt returns false) - a mob
+     * takes the hit the way real spell targets do.
+     */
+    private static net.minecraft.world.entity.LivingEntity placeRayProbe(
+            ServerPlayer caster, double reach, net.minecraft.core.Direction direction) {
+        var probe = net.minecraft.world.entity.EntityType.ZOMBIE.create(caster.level());
+        check(probe != null, "the probe mob must construct");
+        probe.setPos(caster.getX() + direction.getStepX() * reach, caster.getY(),
+                caster.getZ() + direction.getStepZ() * reach);
+        check(caster.level().addFreshEntity(probe), "the probe mob must enter the world");
+        return probe;
+    }
+
+    /** The range number the ray tooltip's distance line carries. */
+    private static double rangeShown(
+            java.util.List<net.minecraft.network.chat.MutableComponent> info) {
+        for (var component : info) {
+            if (component.getContents() instanceof TranslatableContents translatable
+                    && "ui.irons_spellbooks.distance".equals(translatable.getKey())) {
+                Object[] args = translatable.getArgs();
+                check(args.length > 0, "the distance line must carry its number");
+                try {
+                    return Double.parseDouble(args[0].toString());
+                } catch (NumberFormatException bad) {
+                    throw new GameTestAssertException(
+                            "the distance line's first arg must be the number, got "
+                                    + args[0]);
+                }
+            }
+        }
+        throw new GameTestAssertException("the ray tooltip must ship its distance line");
     }
 }
