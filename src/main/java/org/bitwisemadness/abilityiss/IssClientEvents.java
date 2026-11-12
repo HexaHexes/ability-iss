@@ -9,6 +9,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import org.bitwisemadness.abilityiss.client.WikiDescriptionRefresh;
 import org.bitwisemadness.abilityiss.config.IssClientConfig;
 
 /**
@@ -51,6 +52,7 @@ public final class IssClientEvents {
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
+        WikiDescriptionRefresh.onClientTick(); // before the tensura-only gate below
         if (tensuraAbsent) {
             return; // absent forever: nothing to replace
         }

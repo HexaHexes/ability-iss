@@ -1,7 +1,5 @@
 package org.bitwisemadness.abilityiss.spell;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import io.github.manasmods.manascore.config.ConfigRegistry;
 import io.github.manasmods.manascore.config.api.ManasConfig;
@@ -11,11 +9,8 @@ import io.redspace.ironsspellbooks.api.spells.AbstractSpell;
 import io.redspace.ironsspellbooks.api.spells.CastType;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.lang.reflect.Field;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -129,30 +124,21 @@ public final class SpellCatalog {
     }
 
     private static Map<String, String> loadDescriptions() {
+        // the fetcher's download wins when it can be trusted (option B):
+        // a floor-passed cache is newer than the bundle it replaces, and
+        // applies at THIS boot - the registry freezes right after
+        Map<String, String> cached = WikiDescriptions.readCache(
+                WikiDescriptions.cachePath());
+        if (cached != null) {
+            return cached;
+        }
         try (InputStream in = SpellCatalog.class.getResourceAsStream(DESCRIPTIONS_RESOURCE)) {
             if (in == null) {
                 LOGGER.error("bundled spell descriptions missing at {} - the pane shows "
                         + "spells without prose", DESCRIPTIONS_RESOURCE);
                 return Map.of();
             }
-            JsonObject root = JsonParser.parseReader(
-                    new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
-            Map<String, String> out = new HashMap<>();
-            for (var entry : root.entrySet()) {
-                String key = entry.getKey();
-                if (key.isEmpty() || key.charAt(0) == '_') {
-                    continue; // provenance metadata, not a spell
-                }
-                try {
-                    String prose = entry.getValue().getAsString();
-                    if (!prose.isBlank()) {
-                        out.put(key, prose);
-                    }
-                } catch (RuntimeException badValue) {
-                    LOGGER.error("bundled description for {} is not text - skipped", key);
-                }
-            }
-            return Map.copyOf(out);
+            return WikiDescriptions.readJson(in);
         } catch (IOException | RuntimeException failure) {
             LOGGER.error("bundled spell descriptions failed to read - the pane shows "
                     + "spells without prose", failure);
