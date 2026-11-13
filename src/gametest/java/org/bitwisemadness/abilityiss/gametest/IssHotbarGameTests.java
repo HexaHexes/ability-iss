@@ -388,6 +388,12 @@ public final class IssHotbarGameTests {
                 "sync_targeting_data", "teleport_particles", "update_casting_state"}) {
             channels.add(ResourceLocation.fromNamespaceAndPath("irons_spellbooks", id));
         }
+        // IronsLib's own login payloads: patreon data when PatreonData is
+        // non-empty (observed: non-empty in a later session - the send
+        // aborted the batch at mockPlayer) and the attribute remaps
+        for (var id : new String[]{"sync_patreon_data", "sync_attribute_remaps"}) {
+            channels.add(ResourceLocation.fromNamespaceAndPath("irons_lib", id));
+        }
         // Seeding echoes one snapshot per seed; unlisted, placeNewPlayer
         // aborts on the mock connection (observed: cascading failures far
         // from the seeding test itself).

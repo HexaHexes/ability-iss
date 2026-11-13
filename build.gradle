@@ -154,16 +154,17 @@ dependencies {
     // alpha.07: MasteryEffects.rangeMultiplier (core#148's RANGE axis -
     // the range seam's read). alpha.02: the row's live COST quote.
     def abilityCoreVersion = '1.1.0-alpha.09'
-    // alpha.11: NONE rows pass the informational gate - the school
-    // masteries slot from the Spells tab (owner's settable brief), and
-    // the pane omits the Activation section for NONE. alpha.103:
+    // alpha.13: the slotTooltip hook - the menu pill's hover shows the
+    // cell's scroll tooltip (this provider's override). alpha.11: NONE
+    // rows pass the informational gate (their toggle and cycle survive;
+    // the pane omits the Activation section for NONE). alpha.103:
     // registerBarForTab (alpha.99) + LiveCosts (alpha.100) for
     // the tab's provider strip and the pane's live costs - see the toml
     // floor. 1.0.1-alpha.05: CoreMasteryCompat.bonusesOf - the row's live
     // quote reads the snapshot's COST discount from it (the mastery
     // effects slice). 1.0.1-alpha.06: the slotName hook - the menu's
     // provider pill shows each spell's name beside its icon.
-    def abilityHotbarVersion = '1.0.1-alpha.11'
+    def abilityHotbarVersion = '1.0.1-alpha.13'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
