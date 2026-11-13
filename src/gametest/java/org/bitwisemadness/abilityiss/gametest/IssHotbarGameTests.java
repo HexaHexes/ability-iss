@@ -862,14 +862,14 @@ public final class IssHotbarGameTests {
 
     /**
      * The school-mastery abilities (owner's brief): one passive row per
-     * school the catalog lists - no costs, no effects, never castable
-     * (INSTANT with no handler) - whose level feeds every spell of that
-     * school. A cast routes the config share (default 20%) of its grant
-     * to the school ability; the SAME share weights the school's level
-     * back into the spell's aggregate, so the school level reaches the
-     * effect curves; a spell of another school never sees it; and a
-     * config reload re-declares the shares so the next cast routes the
-     * file's number.
+     * school the catalog lists - no costs, never castable (NONE - the
+     * pane never mentions activation) - whose level feeds every spell
+     * of that school. A cast routes the config share (default 20%) of
+     * its grant to the school ability; the SAME share weights the
+     * school's level back into the spell's aggregate, so the school
+     * level reaches the effect curves; a spell of another school never
+     * sees it; and a config reload re-declares the shares so the next
+     * cast routes the file's number.
      */
     @GameTest(template = "empty")
     public static void schoolMasteryAbilitiesFeedAndBoostSchoolSpells(
@@ -881,7 +881,8 @@ public final class IssHotbarGameTests {
                 "every catalog school must get a mastery ability");
 
         // one ability per school the catalog's spells belong to, all passive
-        java.util.Set<ResourceLocation> schools = new java.util.HashSet<>();
+        java.util.Map<ResourceLocation, ResourceLocation> bySchool =
+                new java.util.LinkedHashMap<>();
         ResourceLocation spellId = null;
         AbstractSpell spell = null;
         for (ResourceLocation id : registered) {
@@ -891,22 +892,22 @@ public final class IssHotbarGameTests {
             if (school == null) {
                 continue;
             }
-            schools.add(school);
             ResourceLocation schoolAbility = SchoolMastery.abilityId(school);
-            check(schoolAbilities.contains(schoolAbility),
+            check(schoolAbility != null && schoolAbilities.contains(schoolAbility),
                     "the school has a mastery ability: " + school);
+            bySchool.put(school, schoolAbility);
             if (spellId == null) {
                 spellId = id;
                 spell = resolved;
             }
         }
-        check(schoolAbilities.size() == schools.size(),
+        check(schoolAbilities.size() == bySchool.size(),
                 "exactly one ability per school, got " + schoolAbilities.size()
-                        + " abilities for " + schools.size() + " schools");
+                        + " abilities for " + bySchool.size() + " schools");
         if (spell == null || spellId == null) {
             throw new GameTestAssertException("some spell must have a school");
         }
-        assertSchoolAbilityShapes(schoolAbilities);
+        assertSchoolAbilityShapes(bySchool);
 
         double originalShare = IssServerConfig.SCHOOL_SHARE.get();
         try {
@@ -938,7 +939,7 @@ public final class IssHotbarGameTests {
                     "the school level must actually contribute");
 
             // a spell of ANOTHER school never sees this school's ability
-            check(schools.size() >= 2, "the catalog needs two schools to cross-check");
+            check(bySchool.size() >= 2, "the catalog needs two schools to cross-check");
             ResourceLocation spellSchool = SpellCatalog.schoolOf(spell);
             if (spellSchool == null) {
                 throw new GameTestAssertException("the chosen spell must keep its school");
@@ -971,22 +972,141 @@ public final class IssHotbarGameTests {
         helper.succeed();
     }
 
-    /** The school ability's shape: INSTANT with no handler, no cost, own
-     *  category, and a spec holding a level and nothing else. */
-    private static void assertSchoolAbilityShapes(List<ResourceLocation> schoolAbilities) {
-        for (ResourceLocation id : schoolAbilities) {
+    /**
+     * The school ability's shape (owner's v2 brief): NONE activation -
+     * the pane never mentions activation - no cost, its own category
+     * (the tab's widened membership lists it beside the spells), the
+     * {@code type:} chip tag filing it under its school, a flourished
+     * description naming that school, and a spec holding the four pane
+     * axes at level-only (baseGain 0, no shares).
+     */
+    private static void assertSchoolAbilityShapes(
+            java.util.Map<ResourceLocation, ResourceLocation> bySchool) {
+        for (java.util.Map.Entry<ResourceLocation, ResourceLocation> entry
+                : bySchool.entrySet()) {
+            ResourceLocation school = entry.getKey();
+            ResourceLocation id = entry.getValue();
             var definition = AbilityDiscovery.get(id).orElse(null);
             check(definition != null, "the school ability resolves: " + id);
-            check(definition.activationType() == ActivationType.INSTANT,
-                    "passive row: INSTANT with no handler, got "
+            check(definition.activationType() == ActivationType.NONE,
+                    "passive row: NONE (no activation section), got "
                             + definition.activationType());
             check(definition.costs().isEmpty(), "no cost: " + id);
             check(SchoolMastery.CATEGORY.equals(definition.category()),
-                    "its own category keeps it out of the Spells tab: " + id);
+                    "its own category, listed by the tab's membership: " + id);
+            check(definition.tags().contains("mastery"), "the mastery tag: " + id);
+            check(definition.tags().contains("type:" + school.getPath()),
+                    "the chip tag files it under its school: " + id);
+            var description = definition.description().orElse(null);
+            check(description != null, "a flourished description ships: " + id);
+            check(description.contains(SchoolMastery.prettifySchool(school.getPath())),
+                    "the description names the school: " + description);
             var spec = MasteryDeclarations.get(id).orElseThrow();
-            check(spec.effects().isEmpty(), "no active effect: " + id);
+            check(spec.effects().keySet().equals(java.util.Set.of(
+                            MasteryAxis.COST, MasteryAxis.CAST_TIME,
+                            MasteryAxis.POWER, MasteryAxis.RANGE)),
+                    "the four pane axes, got " + spec.effects().keySet());
             check(spec.baseGain() == 0.0, "never the award source: " + id);
+            check(spec.shares().isEmpty(), "no shares on the school ability: " + id);
         }
+    }
+
+    /**
+     * Cast-to-unlock and the Spells tab's membership (owner's brief): a
+     * school mastery starts PROVABLY unlearned - the server reads its
+     * own pool - ONE cast of that school's spell routes the share that
+     * unlocks it permanently, a spell of ANOTHER school never unlocks
+     * it, and the tab lists the mastery rows (accepts + content) while
+     * staying informational for the casting rows.
+     */
+    @GameTest(template = "empty")
+    public static void schoolMasteryUnlocksByCastingAndListsOnTheSpellsTab(
+            GameTestHelper helper) {
+        var registered = SpellCatalog.registered();
+        check(!registered.isEmpty(), "ISS must stage its spell registry");
+        check(!SchoolMastery.registered().isEmpty(),
+                "every catalog school must get a mastery ability");
+
+        ResourceLocation spellId = pickSchoolSpell(registered);
+        AbstractSpell spell = resolveSpell(spellId);
+        ResourceLocation school = spell == null ? null : SpellCatalog.schoolOf(spell);
+        ResourceLocation schoolAbility = school == null
+                ? null : SchoolMastery.abilityId(school);
+        ResourceLocation otherAbility = otherSchoolAbility(registered, school);
+        if (schoolAbility == null || otherAbility == null) {
+            throw new GameTestAssertException(
+                    "the picked spell and a second school must have masteries");
+        }
+
+        ServerPlayer player = mockPlayer(helper);
+        checkCastToUnlock(player, spellId, schoolAbility, otherAbility);
+        checkSpellsTabListsMastery(player, schoolAbility);
+        helper.succeed();
+    }
+
+    /** The first catalog spell that has a school, or the test fails. */
+    private static ResourceLocation pickSchoolSpell(List<ResourceLocation> registered) {
+        for (ResourceLocation id : registered) {
+            AbstractSpell resolved = resolveSpell(id);
+            if (resolved != null && SpellCatalog.schoolOf(resolved) != null) {
+                return id;
+            }
+        }
+        throw new GameTestAssertException("some spell must have a school");
+    }
+
+    /**
+     * The mastery id of a spell of ANOTHER school than the given one -
+     * the cross-lock witness - or null when the school has none.
+     */
+    private static ResourceLocation otherSchoolAbility(
+            List<ResourceLocation> registered, ResourceLocation school) {
+        if (school == null) {
+            return null;
+        }
+        AbstractSpell other = findSpellOfAnotherSchool(registered, school);
+        if (other == null) {
+            throw new GameTestAssertException("a second school's spell must exist");
+        }
+        ResourceLocation otherSchool = SpellCatalog.schoolOf(other);
+        return otherSchool == null ? null : SchoolMastery.abilityId(otherSchool);
+    }
+
+    /** The unlock flips on the school's first cast; another stays locked. */
+    private static void checkCastToUnlock(ServerPlayer player, ResourceLocation spellId,
+            ResourceLocation schoolAbility, ResourceLocation otherAbility) {
+        // before ANY school cast the pool is empty -> proven unlearned
+        var before = AbilityUnlocks.isLearned(player, schoolAbility);
+        check(before.isPresent() && !before.get(),
+                "locked before the first school cast, got " + before);
+        // one cast routes the school's share into its pool -> unlocked
+        MasteryAwards.award(player, spellId, MasteryTrigger.ACTIVATION, 10_000.0);
+        var after = AbilityUnlocks.isLearned(player, schoolAbility);
+        check(after.isPresent() && after.get(),
+                "one school cast unlocks it permanently, got " + after);
+        // a spell of ANOTHER school never unlocks this school's mastery
+        var otherAnswer = AbilityUnlocks.isLearned(player, otherAbility);
+        check(otherAnswer.isPresent() && !otherAnswer.get(),
+                "another school stays locked, got " + otherAnswer);
+    }
+
+    /** The tab lists the mastery rows: accepts + content, informational stays. */
+    private static void checkSpellsTabListsMastery(
+            ServerPlayer player, ResourceLocation schoolAbility) {
+        var tab = MenuTabs.get(SpellMenuTab.TAB_ID).orElse(null);
+        check(tab != null, "the Spells tab registers");
+        check(tab.informational(),
+                "the tab stays informational - casting rows stay inert");
+        var definition = AbilityDiscovery.get(schoolAbility).orElse(null);
+        check(definition != null, "the school ability resolves: " + schoolAbility);
+        check(tab.accepts().test(schoolAbility, definition),
+                "the tab accepts its mastery rows: " + schoolAbility);
+        var content = tab.content();
+        if (content == null) {
+            throw new GameTestAssertException("the Spells tab ships its content handler");
+        }
+        check(content.entries(player).contains(schoolAbility),
+                "the tab content lists the mastery ids");
     }
 
     /** A registered spell of a different school than the given one, or null. */

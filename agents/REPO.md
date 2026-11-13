@@ -19,8 +19,10 @@ registration-timing pattern - raw write at ISS's own spell-registry event),
 listed once ISS remembers the spell for the player (`AbstractSpell.isLearned`,
 its own side-aware read), greyed unless the spell sits in the inventories
 right now (main/armor/offhand, curios, any carried spell container - books and
-scrolls both), a `type:<school>` strip ordered from ISS's school registry,
-**informational only** (rows never slot) through hotbar's tab API.
+scrolls both), plus the **school masteries** (both categories accepted, rows
+file under their school's `type:` chip), a `type:<school>` strip ordered from
+ISS's school registry, **informational for casting rows** (spells never slot;
+NONE mastery rows pass hotbar's gate and do slot) through hotbar's tab API.
 
 **Dependencies**
 - Required: Minecraft, NeoForge, Ability Hotbar, Ability Core, Iron's Spells
@@ -30,12 +32,13 @@ scrolls both), a `type:<school>` strip ordered from ISS's school registry,
   Tensura's ability charging row (`IssClientEvents`, dist-scoped,
   `isLoaded`-gated, toggle in `ability_iss-client.toml` /
   `hud.replaceTensuraCharging`); absence no-ops. Hotbar's floor is
-  **alpha.90** (the spell-tab API this mod consumes).
+  **alpha.11** (the spell-tab API this mod consumes, plus the NONE gate
+  exemption the mastery rows slot through).
 - Every optional-feeling seam still follows the `isLoaded()` gate rule from
   AGENTS.md for future soft dependencies.
 
-**Test:** `./gradlew runGameTestServer` - `IssHotbarGameTests` (8 tests).
-`expectedTests = 8` in `build.gradle` must match the `@GameTest` count.
+**Test:** `./gradlew runGameTestServer` - `IssHotbarGameTests` (16 tests).
+`expectedTests = 16` in `build.gradle` must match the `@GameTest` count.
 
 **Gotchas**
 - `slotCount` must satisfy ContentPlan's `[1, 18]` on every call - book

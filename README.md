@@ -35,16 +35,24 @@ Tensura RPG pack.
 - **Mastery** (REQ-CORE-12): every successful cast - bar, native keybind
   or wheel, they share one initiation funnel - grants the spell its
   configured XP (`mastery.spellXpGain`, server config, read live at
-  award time) and routes half of it to its school's category mastery,
-  through core's opt-in declarations. Packs retune the share or any other
-  spec field through core's `mastery_spec` datapack overlay. **Mastery
-  improves the spells**: every spell declares COST, CAST_TIME and POWER
-  on core's default curve - the discount bites at the affordability bar,
-  the posted cast charge and the row quote (rounded identically, so they
-  can never disagree), the cast time at `getEffectiveCastTime`, the power
-  at `getSpellPower`. `docs/spell-inventory.md` categorises all 113
-  spells by activation and effect family (issue #28 closed by these
-  seams; DURATION stays undeclared - no caster-scoped seam exists yet).
+  award time) and routes `mastery.schoolShare` (default 20%) to its
+  school's mastery ability, through core's opt-in declarations. Packs
+  retune the share or any other spec field through core's
+  `mastery_spec` datapack overlay. **The school masteries** are passive
+  rows (NONE activation - the pane never mentions activation) listed on
+  the Spells tab under their school's chip: casting any spell of a
+  school **permanently unlocks** that school's mastery - the row's
+  grey, the assignment gate and the slot reconciler all read the same
+  verdict - and its pane carries the four-axis bonus curve at the
+  school's own level plus a flourish naming the school and how it
+  feeds back. **Mastery improves the spells**: every spell declares
+  COST, CAST_TIME and POWER on core's default curve - the discount
+  bites at the affordability bar, the posted cast charge and the row
+  quote (rounded identically, so they can never disagree), the cast
+  time at `getEffectiveCastTime`, the power at `getSpellPower`.
+  `docs/spell-inventory.md` categorises all 113 spells by activation
+  and effect family (issue #28 closed by these seams; DURATION stays
+  undeclared - no caster-scoped seam exists yet).
 - **The bar tracks the book**: content re-seeds on login, whenever the
   book's spells change (inscription), and whenever the spellbook is
   equipped or unequipped - per slot, so a removed spell clears its own cell

@@ -1,6 +1,7 @@
 package org.bitwisemadness.abilityiss.spell;
 
 import io.redspace.ironsspellbooks.api.registry.SchoolRegistry;
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
@@ -15,12 +16,15 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The tab (owner's brief): <b>all the spells the player has found</b>,
  * with a category per ISS school (the {@code type:} strip, ordered from
- * ISS's own school registry) - and <b>informational only</b>: every row
- * is inert to press, drag, toggle and cycle, so the tab can never slot
- * an ability into a hotbar. The content rides the mod's own handler
- * (owner's handler directive): the registered spell ids, narrowed by
- * core's visibility (found/held) and the tab's category membership on
- * top.
+ * ISS's own school registry) <b>plus the school masteries</b> - both
+ * categories accepted, so a mastery row files under its school's chip
+ * and slots from here (hotbar's gate exempts NONE rows). The tab is
+ * still <b>informational</b> for casting rows: every spell row is inert
+ * to press, drag, toggle and cycle, so a spell can never slot into a
+ * hotbar from here. The content rides the mod's own handler (owner's
+ * handler directive): the registered spell ids <b>and</b> school-mastery
+ * ids, narrowed by core's visibility (found/held) and the tab's
+ * category membership on top.
  *
  * <p>The pack shapes the tab's display ({@code menu.*}): its icon
  * (empty = text-only label - the resolve-or-hide rule keeps a clean
@@ -58,8 +62,13 @@ public final class SpellMenuTab {
         }
         registered = true;
         MenuTabs.register(TAB_ID, TAB_NAME_KEY, tabSprite(), tabIcon(tabIconId()),
-                (id, definition) -> SpellCatalog.CATEGORY.equals(definition.category()),
-                player -> SpellCatalog.registered(),
+                (id, definition) -> SpellCatalog.CATEGORY.equals(definition.category())
+                        || SchoolMastery.CATEGORY.equals(definition.category()),
+                player -> {
+                    List<ResourceLocation> ids = new ArrayList<>(SpellCatalog.registered());
+                    ids.addAll(SchoolMastery.registered());
+                    return ids;
+                },
                 true);
         // owner: this tab's strip shows the SPELLBOOK's cells (the
         // provider bar), not the assignable bar's
