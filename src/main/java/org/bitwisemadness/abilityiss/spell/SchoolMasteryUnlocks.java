@@ -1,17 +1,13 @@
 package org.bitwisemadness.abilityiss.spell;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.common.NeoForge;
 import org.bitwisemadness.abilitycore.api.AbilityUnlocks;
 import org.bitwisemadness.abilitycore.api.MasteryTarget;
 import org.bitwisemadness.abilitycore.mastery.MasteryAttachments;
-import org.bitwisemadness.abilitycore.sync.MasteryQueryAnsweredEvent;
-import org.bitwisemadness.abilitycore.sync.MasteryQueryResponse;
+import org.bitwisemadness.abilityhotbar.compat.CoreMasteryCompat;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -25,37 +21,27 @@ import org.jetbrains.annotations.Nullable;
  * the SERVER reads the asking player's own attachment - authoritative,
  * always answerable, {@code false} before the first school cast (the
  * row greys, assignment refuses, the reconciler clears a stale slot).
- * The CLIENT cannot read attachments, so it answers from the last
- * {@link MasteryQueryAnsweredEvent} snapshot - the same exchange the
- * menu's mastery badges read - fenced to that snapshot's own target
- * player. No snapshot for THIS player yet reads as <b>unknown</b>
- * (empty), never a guessed verdict: the never-guess rule.</p>
+ * The CLIENT cannot read attachments, so it answers from hotbar's
+ * stored copy of the answered mastery snapshot - the same exchange the
+ * menu's mastery badges read, fenced <i>there</i> to its own request,
+ * so this class keeps no snapshot of its own. No answer yet reads as
+ * <b>unknown</b> (empty), never a guessed verdict: the never-guess
+ * rule.</p>
  *
  * <p>Declared once at mod setup beside the other declare registries
- * ({@link #register}); the listener rides NeoForge's game bus exactly
- * like hotbar's own snapshot receiver. Core is a hard dependency of
- * this mod, so no {@code isLoaded} guard is needed.</p>
+ * ({@link #register}). Core is a hard dependency of this mod, so no
+ * {@code isLoaded} guard is needed.</p>
  */
 public final class SchoolMasteryUnlocks {
-
-    /** The last snapshot's echoed target (the queried player's UUID). */
-    @Nullable
-    private static String snapshotTarget;
-
-    /** That snapshot's {@code ABILITY} XP by id string; null = none yet. */
-    @Nullable
-    private static Map<String, Double> snapshotXp;
 
     private SchoolMasteryUnlocks() {
     }
 
     /**
-     * Declares every school ability's unlock provider and subscribes the
-     * snapshot cache (mod setup, after the register event populated
-     * {@link SchoolMastery#registered()}).
+     * Declares every school ability's unlock provider (mod setup, after
+     * the register event populated {@link SchoolMastery#registered()}).
      */
     public static void register() {
-        NeoForge.EVENT_BUS.addListener(SchoolMasteryUnlocks::onAnswered);
         for (ResourceLocation id : SchoolMastery.registered()) {
             AbilityUnlocks.declare(id, SchoolMasteryUnlocks::learnedFor);
         }
@@ -63,8 +49,8 @@ public final class SchoolMasteryUnlocks {
 
     /**
      * The unlock answer for one school ability: server truth from the
-     * attachment, client truth from the fenced snapshot, unknown when
-     * neither can answer.
+     * attachment, client truth from hotbar's stored snapshot, unknown
+     * when neither can answer.
      *
      * @param player    the asking player (null abstains - tests)
      * @param abilityId the school ability being asked about
@@ -80,51 +66,22 @@ public final class SchoolMasteryUnlocks {
                     .xp(MasteryTarget.ability(abilityId).key());
             return Optional.of(xp > 0.0);
         }
-        return cachedLearned(player.getStringUUID(), abilityId);
+        return learnedFrom(CoreMasteryCompat.answered(), CoreMasteryCompat.xpOf(abilityId));
     }
 
     /**
-     * The client branch's verdict, headless-testable: the fenced
-     * snapshot answers for ITS target player only - anyone else (or no
-     * snapshot yet) reads as unknown, an absent ability reads as
-     * never-earned (the snapshot is complete server truth).
+     * The client branch's verdict from store facts: an answered store
+     * is complete server truth (an absent ability carries 0 XP and
+     * reads never-earned), an unanswered one reads unknown - the
+     * never-guess rule. Headless-testable; the fence around the store
+     * itself lives in hotbar, whose own tests cover it (a reply for
+     * another player is dropped there).
      *
-     * @param playerUuid the asking player's UUID string
-     * @param abilityId  the school ability being asked about
+     * @param answered whether hotbar's snapshot has arrived
+     * @param xp       the stored own-pool XP hotbar reports for the id
      * @return learned / not learned, or empty when unknown
      */
-    static Optional<Boolean> cachedLearned(String playerUuid, ResourceLocation abilityId) {
-        String target = snapshotTarget;
-        Map<String, Double> xpByAbility = snapshotXp;
-        if (target == null || xpByAbility == null || !target.equals(playerUuid)) {
-            return Optional.empty(); // no snapshot for THIS player - never guess
-        }
-        return Optional.of(xpByAbility.getOrDefault(abilityId.toString(), 0.0) > 0.0);
-    }
-
-    private static void onAnswered(MasteryQueryAnsweredEvent event) {
-        accept(event.response());
-    }
-
-    /**
-     * Accepts an arrived snapshot: {@code ABILITY} entries only (the
-     * unlock verdict never rides category/subcategory pools), the echoed
-     * target kept for the fence, the whole map swapped in one write.
-     */
-    static void accept(MasteryQueryResponse response) {
-        Map<String, Double> xpByAbility = new HashMap<>();
-        for (MasteryQueryResponse.Entry entry : response.entries()) {
-            if ("ABILITY".equals(entry.kind())) {
-                xpByAbility.put(entry.id(), entry.xp());
-            }
-        }
-        snapshotTarget = response.targetPlayer();
-        snapshotXp = Map.copyOf(xpByAbility);
-    }
-
-    /** Test seam: each test starts from no snapshot (JUnit has no order). */
-    static void reset() {
-        snapshotTarget = null;
-        snapshotXp = null;
+    static Optional<Boolean> learnedFrom(boolean answered, double xp) {
+        return answered ? Optional.of(xp > 0.0) : Optional.empty();
     }
 }
