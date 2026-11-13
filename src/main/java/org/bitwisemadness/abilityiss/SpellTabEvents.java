@@ -11,6 +11,7 @@ import org.bitwisemadness.abilitycore.api.AbilityDefinition;
 import org.bitwisemadness.abilitycore.registry.AbilityRegistries;
 import org.bitwisemadness.abilityiss.config.IssServerConfig;
 import org.bitwisemadness.abilityiss.spell.SchoolMastery;
+import org.bitwisemadness.abilityiss.spell.SchoolMasteryUnlocks;
 import org.bitwisemadness.abilityiss.spell.SpellCatalog;
 import org.bitwisemadness.abilityiss.spell.SpellMastery;
 import org.bitwisemadness.abilityiss.spell.SpellMenuTab;
@@ -80,6 +81,10 @@ public final class SpellTabEvents {
     @SubscribeEvent
     public static void onCommonSetup(FMLCommonSetupEvent event) {
         SpellProviders.declareAll();
+        // Cast-to-unlock for the school masteries (owner's brief): the
+        // providers declare at setup like every other declare registry,
+        // and the snapshot cache rides the same call.
+        SchoolMasteryUnlocks.register();
         SpellMenuTab.register();
         // The config-live gain handler (names resolve at first award, so
         // this order against declareAll is free)

@@ -55,33 +55,40 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_core"
 type = "required"
-# alpha.07 of the 1.1.0 line is the floor: it carries MasteryEffects
-# .rangeMultiplier (the RANGE seam's read - core#148's fifth axis).
-# Under it sit the row's live COST quote through hotbar's CoreMasteryCompat
-# (alpha.02 - Entry.bonuses ships with the channel v5 bump; both sides must
-# run the same channel version or they disconnect at negotiation), the
-# mastery contract (1.0.2-alpha.01, core#137 - declarations, awards, effect
-# reads) and the slot gate (ability-core#87). The floor turns the break
-# history into a boot refusal: the resource series reshaped
-# AbilityDefinition's constructor at alpha.34/35/39 and each break crashed
-# older binaries at RegisterEvent (Tensura RPG, 2026-11-06) - a too-old
-# pack now gets a loud dependency error instead. Packs authoring
-# mastery_spec overlays want the datapack layer (core#138+).
-versionRange = "[1.1.0-alpha.07,)"
+# alpha.09 of the 1.1.0 line is the floor: ActivationType.NONE - the
+# school mastery rows register with it (a pre-NONE core has no constant
+# to reference - NoSuchFieldError at the registry event). Under it sits
+# alpha.07 (MasteryEffects.rangeMultiplier, the RANGE seam's read -
+# core#148's fifth axis), then the row's live COST quote through
+# hotbar's CoreMasteryCompat (alpha.02 - Entry.bonuses ships with the
+# channel v5 bump; both sides must run the same channel version or they
+# disconnect at negotiation), the mastery contract (1.0.2-alpha.01,
+# core#137 - declarations, awards, effect reads) and the slot gate
+# (ability-core#87). The floor turns the break history into a boot
+# refusal: the resource series reshaped AbilityDefinition's constructor
+# at alpha.34/35/39 and each break crashed older binaries at
+# RegisterEvent (Tensura RPG, 2026-11-06) - a too-old pack now gets a
+# loud dependency error instead. Packs authoring mastery_spec overlays
+# want the datapack layer (core#138+).
+versionRange = "[1.1.0-alpha.09,)"
 ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-# alpha.06 of the 1.0.1 line is the floor: it carries the slotName hook
-# (the menu's provider pill shows each spell's name beside its icon) plus
-# every API the Spells tab consumes (registerBarForTab alpha.99, LiveCosts
-# alpha.100, TabContent/informational tabs, registerCategoryTabs,
-# subCategoryIcon) and CoreMasteryCompat.bonusesOf (the row's live COST
-# quote reads the snapshot's discount from it) - older hotbars never
-# register the tab's shape or show the names.
-versionRange = "[1.0.1-alpha.06,)"
+# alpha.11 of the 1.0.1 line is the floor: the informational gate now
+# exempts NONE/UNKNOWN rows, so the school masteries slot from the
+# Spells tab (owner's settable brief) and the pane omits the Activation
+# section for NONE - under it, mastery rows list but only slot from an
+# ordinary tab. It also carries the slotName hook (the menu's provider
+# pill shows each spell's name beside its icon) plus every API the
+# Spells tab consumes (registerBarForTab alpha.99, LiveCosts alpha.100,
+# TabContent/informational tabs, registerCategoryTabs, subCategoryIcon)
+# and CoreMasteryCompat.bonusesOf (the row's live COST quote reads the
+# snapshot's discount from it) - older hotbars never register the tab's
+# shape or show the names.
+versionRange = "[1.0.1-alpha.11,)"
 ordering = "AFTER"
 side = "BOTH"
 
