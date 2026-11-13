@@ -7,11 +7,15 @@ import io.redspace.ironsspellbooks.api.util.Utils;
 import io.redspace.ironsspellbooks.capabilities.magic.CooldownInstance;
 import io.redspace.ironsspellbooks.capabilities.magic.PlayerCooldowns;
 import io.redspace.ironsspellbooks.player.ClientMagicData;
+import io.redspace.ironsspellbooks.registries.ItemRegistry;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import org.bitwisemadness.abilitycore.api.AbilityAvailability;
 import org.bitwisemadness.abilityhotbar.content.HotbarContentProvider;
 import org.bitwisemadness.abilityiss.SpellCellOverlays;
@@ -42,6 +46,15 @@ import org.jetbrains.annotations.Nullable;
  * translation ISS's own screens use - so the spellbook strip reads as
  * words, not just icons. Empty or non-spell cells ship {@code null} and
  * their pills stay icon-only.</p>
+ *
+ * <p><b>Cells carry their scroll's tooltip</b> (the {@code slotTooltip}
+ * hook): hovering a menu slot pill's icon shows the SAME lines as the
+ * scroll that spell would forge into - the provider builds the real
+ * scroll stack for the cell's spell ({@link ISpellContainer#createScrollContainer},
+ * the {@code CreateScrollCommand} pattern) and reads the item's own
+ * tooltip, name and all, so the pill can never disagree with an actual
+ * scroll in an inventory. Empty or non-spell cells (and a missing
+ * player) ship {@code null}.</p>
  *
  * <p><b>Per-cell overlays</b> (the {@code availabilityFor} hook): each
  * cell's cooldown sweep and castability tint come from ISS's own
@@ -106,6 +119,26 @@ public final class SpellbookBarContentProvider implements HotbarContentProvider 
         // tolerates a null player (the obfuscation check treats it as false)
         return container.getSpellAtIndex(index).getSpell()
                 .getDisplayName(Minecraft.getInstance().player);
+    }
+
+    @Override
+    @Nullable
+    public List<Component> slotTooltip(@Nullable Player player, int index) {
+        if (player == null) {
+            return null;
+        }
+        var container = currentContainer();
+        if (container == null || !SpellbookBarBridge.isSpellCell(container, index)) {
+            return null;
+        }
+        SpellData data = container.getSpellAtIndex(index);
+        // the REAL scroll for this cell's spell, built the way
+        // CreateScrollCommand builds one: the container is written onto
+        // the stack, then the item's own tooltip reads it back
+        ItemStack scroll = new ItemStack(ItemRegistry.SCROLL.get());
+        ISpellContainer.createScrollContainer(data.getSpell(), data.getLevel(), scroll);
+        return scroll.getTooltipLines(Item.TooltipContext.of(player.level()), player,
+                TooltipFlag.NORMAL);
     }
 
     @Override

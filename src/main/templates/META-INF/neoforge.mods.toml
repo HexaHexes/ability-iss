@@ -77,18 +77,19 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "ability_hotbar"
 type = "required"
-# alpha.11 of the 1.0.1 line is the floor: the informational gate now
-# exempts NONE/UNKNOWN rows, so the school masteries slot from the
-# Spells tab (owner's settable brief) and the pane omits the Activation
-# section for NONE - under it, mastery rows list but only slot from an
-# ordinary tab. It also carries the slotName hook (the menu's provider
-# pill shows each spell's name beside its icon) plus every API the
-# Spells tab consumes (registerBarForTab alpha.99, LiveCosts alpha.100,
-# TabContent/informational tabs, registerCategoryTabs, subCategoryIcon)
-# and CoreMasteryCompat.bonusesOf (the row's live COST quote reads the
-# snapshot's discount from it) - older hotbars never register the tab's
-# shape or show the names.
-versionRange = "[1.0.1-alpha.11,)"
+# alpha.13 of the 1.0.1 line is the floor: it carries hotbar's
+# slotTooltip hook - this provider's pill hover builds the cell's scroll
+# and shows its tooltip, so under it the override never binds. alpha.11
+# added the informational-gate NONE/UNKNOWN exemption (their toggle and
+# cycle survive under the Spells tab; the pane omits the Activation
+# section for NONE) and the slotName hook (the menu's provider pill
+# shows each spell's name beside its icon); every API the Spells tab
+# consumes is older still (registerBarForTab alpha.99, LiveCosts
+# alpha.100, TabContent/informational tabs, registerCategoryTabs,
+# subCategoryIcon) along with CoreMasteryCompat.bonusesOf (the row's
+# live COST quote reads the snapshot's discount from it) - older
+# hotbars never register the tab's shape or show the names.
+versionRange = "[1.0.1-alpha.13,)"
 ordering = "AFTER"
 side = "BOTH"
 

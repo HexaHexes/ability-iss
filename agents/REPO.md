@@ -22,7 +22,8 @@ right now (main/armor/offhand, curios, any carried spell container - books and
 scrolls both), plus the **school masteries** (both categories accepted, rows
 file under their school's `type:` chip), a `type:<school>` strip ordered from
 ISS's school registry, **informational for casting rows** (spells never slot;
-NONE mastery rows pass hotbar's gate and do slot) through hotbar's tab API.
+NONE mastery rows keep their toggle and cycle but never slot either - hotbar's
+assignment gate - and hide while still locked) through hotbar's tab API.
 
 **Dependencies**
 - Required: Minecraft, NeoForge, Ability Hotbar, Ability Core, Iron's Spells
@@ -32,8 +33,9 @@ NONE mastery rows pass hotbar's gate and do slot) through hotbar's tab API.
   Tensura's ability charging row (`IssClientEvents`, dist-scoped,
   `isLoaded`-gated, toggle in `ability_iss-client.toml` /
   `hud.replaceTensuraCharging`); absence no-ops. Hotbar's floor is
-  **alpha.11** (the spell-tab API this mod consumes, plus the NONE gate
-  exemption the mastery rows slot through).
+  **alpha.13** (the `slotTooltip` hook this provider's pill hover
+  overrides, plus the spell-tab API this mod consumes and the NONE
+  informational-gate exemption the mastery rows' toggle and cycle ride).
 - Every optional-feeling seam still follows the `isLoaded()` gate rule from
   AGENTS.md for future soft dependencies.
 

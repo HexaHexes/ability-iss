@@ -37,16 +37,19 @@ import org.jetbrains.annotations.Nullable;
  * and the row also carries {@code type:<school>} so it files under its
  * school's chip; the Spells tab lists both categories (owner's tab
  * brief), and visibility stays core's default: only declared
- * <em>spell</em> ids are found/held gated, so a school ability is
- * always listed. Registered at ISS's spell-registry event beside
- * {@link SpellCatalog}.</p>
+ * <em>spell</em> ids are found/held gated - and hotbar hides the row
+ * while it is a locked passive mastery (owner's hide brief), so it
+ * appears only once unlocked. Registered at ISS's spell-registry event
+ * beside {@link SpellCatalog}.</p>
  *
  * <p>The activation is {@link ActivationType.NONE} (owner's NONE brief):
  * the pane omits the Activation section entirely, and hotbar's
- * informational gate lets the row slot even under the informational
- * Spells tab. Unlock is cast-to-unlock ({@link SchoolMasteryUnlocks}):
- * the school ability's own XP pool - fed by the routed share of every
- * school cast - is the permanent unlock record.</p>
+ * informational gate spares the row's toggle and cycle under the
+ * informational Spells tab - whether it ever slots is hotbar's
+ * assignment gate's answer. Unlock is cast-to-unlock
+ * ({@link SchoolMasteryUnlocks}): the school ability's own XP pool - fed
+ * by the routed share of every school cast - is the permanent unlock
+ * record.</p>
  */
 public final class SchoolMastery {
 
