@@ -17,6 +17,7 @@ import org.bitwisemadness.abilitycore.api.ConsumptionStrategies;
 import org.bitwisemadness.abilitycore.api.MasteryAxis;
 import org.bitwisemadness.abilitycore.api.MasteryDeclarations;
 import org.bitwisemadness.abilitycore.api.MasterySpec;
+import org.bitwisemadness.abilityhotbar.TextLabels;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -158,29 +159,16 @@ public final class SchoolMastery {
 
     /**
      * The school path as a display name ({@code dark_blood} -&gt;
-     * {@code Dark Blood}): each underscore segment capitalized with
-     * {@link Character#toUpperCase(char)} - locale-free by construction,
-     * so the same path always yields the same bytes on every host.
+     * {@code Dark Blood}): hotbar's shared title-case form - the one
+     * fallback implementation for the whole org ({@code TextLabels}),
+     * reached through this domain-named wrapper so school prose keeps
+     * its vocabulary. Empty answers empty; same bytes on every host.
      *
      * @param schoolPath the school's path segment ({@code blood})
-     * @return the prettified name (the path unchanged when empty)
+     * @return the prettified name (empty when empty)
      */
     public static String prettifySchool(String schoolPath) {
-        if (schoolPath.isEmpty()) {
-            return schoolPath;
-        }
-        StringBuilder out = new StringBuilder(schoolPath.length() + 4);
-        for (String word : schoolPath.split("_", -1)) {
-            if (word.isEmpty()) {
-                continue;
-            }
-            if (out.length() > 0) {
-                out.append(' ');
-            }
-            out.append(Character.toUpperCase(word.charAt(0)));
-            out.append(word, 1, word.length());
-        }
-        return out.toString();
+        return TextLabels.title(schoolPath);
     }
 
     /**
