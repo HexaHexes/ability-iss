@@ -153,7 +153,7 @@ dependencies {
     // activation - a pre-NONE core has no constant to reference).
     // alpha.07: MasteryEffects.rangeMultiplier (core#148's RANGE axis -
     // the range seam's read). alpha.02: the row's live COST quote.
-    def abilityCoreVersion = '1.1.0-alpha.09'
+    def abilityCoreVersion = '1.1.0-alpha.13'
     // alpha.13: the slotTooltip hook - the menu pill's hover shows the
     // cell's scroll tooltip (this provider's override). alpha.11: NONE
     // rows pass the informational gate (their toggle and cycle survive;
@@ -164,7 +164,7 @@ dependencies {
     // quote reads the snapshot's COST discount from it (the mastery
     // effects slice). 1.0.1-alpha.06: the slotName hook - the menu's
     // provider pill shows each spell's name beside its icon.
-    def abilityHotbarVersion = '1.0.1-alpha.13'
+    def abilityHotbarVersion = '1.0.1-alpha.20'
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -178,6 +178,7 @@ dependencies {
     // the spell catalog's unit tests link core's ResourceCost at runtime
     // (the curios/tensura testImplementation pattern)
     testImplementation "org.bitwisemadness.abilitycore:ability_core:${abilityCoreVersion}"
+testImplementation "org.bitwisemadness.abilityhotbar:ability_hotbar:${abilityHotbarVersion}"
 
     // The HUD swap compiles against Tensura's client config/overlay and
     // manascore's config registry (iss's FIRST soft dependency): both
