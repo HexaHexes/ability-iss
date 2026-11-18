@@ -51,7 +51,16 @@ jobs:
           set -euo pipefail
 
           RESOURCE="src/main/resources/assets/ability_iss/spell_descriptions.json"
-          if git diff --quiet -- "$RESOURCE"; then
+
+          # The generator stamps a fresh _retrieved on every run, so a
+          # whole-file diff is never clean - the old check therefore opened a
+          # date-only PR every week (iss#45). Ignoring that ONE provenance
+          # line, with the generator's escaping canonical, is the semantic
+          # compare "the prose actually changed" means.
+          PROSE_DIFF=$(git diff -- "$RESOURCE" \
+            | grep -E '^[+-][^+-]' \
+            | grep -vE '^[+-]  "_retrieved"' || true)
+          if [ -z "$PROSE_DIFF" ]; then
             echo "Bundled descriptions already match the wiki."
             exit 0
           fi

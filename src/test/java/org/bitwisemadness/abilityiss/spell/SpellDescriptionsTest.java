@@ -1,5 +1,6 @@
 package org.bitwisemadness.abilityiss.spell;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.gson.JsonParser;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -46,14 +49,30 @@ class SpellDescriptionsTest {
                     new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
             assertEquals("https://iron.wiki/spells/",
                     root.get("_source").getAsString(), "the source is attributed");
-            assertEquals("2026-11-12", root.get("_retrieved").getAsString(),
-                    "the retrieval date is recorded");
+            var retrieved = root.get("_retrieved").getAsString();
+            var parsed = assertDoesNotThrow(() -> LocalDate.parse(retrieved),
+                    "the retrieval date is recorded as yyyy-MM-dd, got " + retrieved);
+            assertFalse(parsed.isAfter(LocalDate.now(ZoneOffset.UTC)),
+                    "the retrieval date is never from the future, got " + parsed);
         }
         var descriptions = SpellCatalog.descriptions();
         assertFalse(descriptions.containsKey("_source"),
                 "metadata keys never become spell entries");
         assertFalse(descriptions.containsKey("_retrieved"),
                 "metadata keys never become spell entries");
+    }
+
+    @Test
+    void bundledBytesKeepOneCanonicalEscaping() throws Exception {
+        try (var in = SpellDescriptionsTest.class.getResourceAsStream(RESOURCE)) {
+            assertNotNull(in, "the resource must ship on the test classpath");
+            var raw = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            assertFalse(raw.contains("'"),
+                    "apostrophes ship in the escaped form: PowerShell 5.1 escapes "
+                            + "them and pwsh does not, so a raw one means a hand-run "
+                            + "and the cron serialized the same prose differently "
+                            + "(iss#45's phantom wiki edits)");
+        }
     }
 
     @Test
