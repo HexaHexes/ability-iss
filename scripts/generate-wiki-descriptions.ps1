@@ -119,7 +119,21 @@ $directory = Split-Path -Parent $OutFile
 if ($directory -and -not (Test-Path $directory)) {
     New-Item -ItemType Directory -Force -Path $directory | Out-Null
 }
-[System.IO.File]::WriteAllText($OutFile, (($lines -join "`n") + "`n"),
+
+# One escaping, whichever shell runs this (the weekly cron uses pwsh, a
+# hand-run is usually Windows PowerShell 5.1): ConvertTo-Json escapes
+# these characters on 5.1 and leaves them raw on pwsh, so identical
+# prose serialized two ways - iss#45 shipped seven phantom "wiki edits"
+# purely from that divergence. Force 5.1's form, the one the shipped
+# file already carries, so a refresh's diff is wiki edits only.
+$escapeHtmlUnsafe = {
+    param($match)
+    [string][char]92 + 'u' + ('{0:x4}' -f [int][char]$match.Value)
+}
+$text = ($lines -join "`n") + "`n"
+$text = [regex]::Replace($text, "[&<>']", $escapeHtmlUnsafe)
+$text = [regex]::Replace($text, '[^\x00-\x7F]', $escapeHtmlUnsafe)
+[System.IO.File]::WriteAllText($OutFile, $text,
     [System.Text.UTF8Encoding]::new($false))
 
 Write-Host "Wrote $($entries.Count) spells to $OutFile"
